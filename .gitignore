@@ -1,4 +1,5 @@
 *.exe
 *.sum
 *.png
+*.syso
 target/*
