@@ -13,7 +13,7 @@
 
 #### Running on unix systems
 ```zsh
- .\nameShift.exe "path/to/directory" "OldText" "NewText" -ignore-config-dirs=true -work-globally=false -concurrent-run=false -case-matching=true -file-extensions=".go,.md" 
+ ./nameShift "path/to/directory" "OldText" "NewText" -ignore-config-dirs=true -work-globally=false -concurrent-run=false -case-matching=true -file-extensions=".go,.md" 
 ```
 
 **Enjoy using it the same way I enjoyed developing it**
