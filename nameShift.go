@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"github.com/fatih/color"
 	"github.com/jedib0t/go-pretty/v6/table"
-	"github.com/jedib0t/go-pretty/v6/text"
 	"os"
 	"path/filepath"
 	"strings"
@@ -47,85 +46,34 @@ func printLogo() {
 	fmt.Println(teal(multiLineString))
 }
 
-func resetColors() {
-	reset := color.New(color.Reset).SprintFunc()
-	fmt.Printf(reset(""))
-}
-
-func printSettings() {
-	magenta := color.New(color.FgHiMagenta).SprintFunc()
-	fmt.Println(magenta(fmt.Sprintf("\n> nameShifter called with the following arguments:\n")))
-	t := table.NewWriter()
-	t.SetOutputMirror(os.Stdout)
-	header := []string{"#", "Argument Name", "Argument Value"}
-	t.AppendHeader(table.Row{"#", "Argument Name", "Argument Value"})
-	for i := range os.Args {
-		argName := ""
-		if i == 0 {
-			argName = "binaryPath"
-		} else if i == 1 {
-			argName = "startingDir"
-		} else if i == 2 {
-			argName = "stringToBeReplaced"
-		} else if i == 3 {
-			argName = "replacementString"
-		} else {
-			argName = strings.Split(os.Args[i], "=")[0]
-		}
-		t.AppendRows([]table.Row{
-			{i, argName, os.Args[i]},
-		})
-		t.AppendSeparator()
-	}
-
-	t.AppendFooter(table.Row{"", "", "Total", len(os.Args)})
-	t = formatColumn(t, header)
-	t.SetStyle(table.StyleColoredMagentaWhiteOnBlack)
-	t.Render()
-	fmt.Println("")
-	resetColors()
-}
-
 func customFlagParsing() {
+	//log.Println("> Inside customFlagParsing")
 	for i, arg := range os.Args {
 		if strings.HasPrefix(arg, "--") {
-			os.Args[i] = "-" + arg
+			//log.Println("> Inside customFlagParsing for loop")
+			os.Args[i] = strings.Replace(arg, "--", "-", -1)
+			//log.Printf("> arg before : %s and after: %s\n", arg, os.Args[1])
 		}
 	}
-}
-
-func replacementsAndErrorsReport() {
-	t := table.NewWriter()
-	t.SetOutputMirror(os.Stdout)
-	header := []string{"#", "Replacements Made", "Errors Encountered"}
-	t.AppendHeader(table.Row{"#", "Replacements Made", "Errors Encountered"})
-	t.AppendRows([]table.Row{
-		{1, replacementsCount, errorsCount},
-	})
-	t.AppendSeparator()
-	t.AppendFooter(table.Row{">", "Shifted", ""})
-
-	t = formatColumn(t, header)
-	t.SetStyle(table.StyleColoredBlackOnYellowWhite)
-	t.Render()
-	fmt.Println("")
-	resetColors()
-}
-
-func addRowTo(table table.Writer, r []table.Row) table.Writer {
-	table.AppendRows(r)
-	table.AppendSeparator()
-	return table
 }
 
 func init() {
+	//log.Println("> Entering init function for initializing the flags")
 	customFlagParsing()
 	flag.BoolVar(&ignoreConfig, "ignore-config-dirs", true, "Ignore .config directories 🚫🐙")
 	flag.BoolVar(&workGlobally, "work-globally", false, "Work on folder names, file names, and file contents (default false)🌍✨")
 	flag.BoolVar(&concurrentRun, "concurrent-run", false, "Run each folder inside the root directory in a separate goroutine (default false)🏃💨")
 	flag.BoolVar(&caseMatching, "case-matching", true, "Match case when replacing strings (default true) 👔🔍")
 	flag.StringVar(&fileExtensions, "file-extensions", ".go", "Comma-separated list of file extensions to process, e.g., '.go,.txt' 📄✂️")
+
+	//log.Printf("> ignore-config-dirs > %t \n", ignoreConfig)
+	//log.Printf("> work-globally > %t \n", workGlobally)
+	//log.Printf("> concurrent-run > %t \n", concurrentRun)
+	//log.Printf("> case-matching > %t \n", caseMatching)
+	//log.Printf("> fileExtensions > %s \n", fileExtensions)
+	//log.Println("> Exiting init after binding the flags")
 }
+
 func ignoreConfigDirs(path string, err error) error {
 	dirName := filepath.Base(path)
 	if strings.HasPrefix(dirName, ".") && ignoreConfig {
@@ -151,7 +99,7 @@ func processPath(path string, info os.FileInfo, theStringToBeReplaced, theReplac
 	}
 
 	// If global, rename entities first.
-	if workGlobally && info.IsDir() || strings.Contains(info.Name(), theStringToBeReplaced) {
+	if workGlobally && info.IsDir() || strings.Contains(info.Name(), theStringToBeReplaced) && workGlobally {
 		err := renameEntities(path, theStringToBeReplaced, theReplacementString)
 		if err != nil {
 			row := []table.Row{{1, fmt.Sprintf("Could not rename this directory: %s 📕🚫", path), err}}
@@ -243,17 +191,19 @@ func processPath(path string, info os.FileInfo, theStringToBeReplaced, theReplac
 }
 
 func renameEntities(startingDirectory, theStringToBeReplaced, theReplacementString string) error {
+	//log.Println("> Entering renameEntities")
 	var dirs []string
 	var files []string
 
 	// First, accumulate directories and files
 	err := filepath.Walk(startingDirectory, func(path string, info os.FileInfo, err error) error {
 		if info.IsDir() {
+			//log.Printf("> renameEntities > appending dir: %s\n", path)
 			dirs = append(dirs, path)
 		} else {
+			//log.Printf("> renameEntities > appending file: %s\n", path)
 			files = append(files, path)
 		}
-		replacementsCount++
 		return nil
 	})
 
@@ -270,6 +220,7 @@ func renameEntities(startingDirectory, theStringToBeReplaced, theReplacementStri
 	)
 
 	for _, dir := range dirs {
+
 		err := os.Chmod(dir, 0666)
 		if err != nil {
 			errorsCount++
@@ -279,8 +230,8 @@ func renameEntities(startingDirectory, theStringToBeReplaced, theReplacementStri
 
 		// Isolate the directory name from its path
 		dirName := filepath.Base(dir)
-		currentDir := filepath.Dir(dir)
-		parentDir := filepath.Dir(currentDir)
+		parentDir := filepath.Dir(dir)
+		//grandDir := filepath.Dir(parentDir)
 
 		color.Green("\n> Dir => %s\n", dirName)
 		color.Green("\n> Parent Dir => %s\n", parentDir)
@@ -291,7 +242,7 @@ func renameEntities(startingDirectory, theStringToBeReplaced, theReplacementStri
 
 		if err := os.Rename(dir, newPath); err != nil {
 			errorsCount++
-			row := []table.Row{{3, fmt.Errorf("\n> error renaming %s to %s 😵💔", dir, newPath), err}}
+			row := []table.Row{{3, fmt.Sprintf("Error renaming %s to %s 😵💔", dir, newPath), err}}
 			addRowTo(errorReport, row)
 			return err
 		}
@@ -311,7 +262,7 @@ func renameEntities(startingDirectory, theStringToBeReplaced, theReplacementStri
 
 		if err := os.Rename(file, newPath); err != nil {
 			errorsCount++
-			row := []table.Row{{3, fmt.Errorf("\n> error renaming %s to %s 😵💔", file, newPath), err}}
+			row := []table.Row{{3, fmt.Sprintf("Error renaming %s to %s 😵💔", file, newPath), err}}
 			addRowTo(errorReport, row)
 			return err
 		}
@@ -328,7 +279,7 @@ func main() {
 	flag.Parse()
 	errorReport = table.NewWriter()
 	if len(flag.Args()) < 3 {
-		color.Red(fmt.Sprintf("\n> Usage: go run script.go <startingDirectory> <theStringToBeReplaced> <theReplacementString> -flags❗📚👀"))
+		color.Red(fmt.Sprintf("\n> Usage: go run nameShifter.go <startingDirectory> <theStringToBeReplaced> <theReplacementString> -flags❗📚👀"))
 		os.Exit(1)
 	}
 
@@ -367,56 +318,4 @@ func main() {
 	displayErrorReport()
 	replacementsAndErrorsReport()
 	os.Exit(0)
-}
-
-func displayErrorReport() {
-	errorReport.SetOutputMirror(os.Stdout)
-	header := []string{"#", "Directory", "Error Details"}
-	errorReport.AppendHeader(table.Row{"#", "Directory", "Error Details"})
-	errorReport.AppendFooter(table.Row{"Error", "Report", "Done"})
-	errorReport = formatColumn(errorReport, header)
-	errorReport.SetStyle(table.StyleColoredRedWhiteOnBlack)
-	errorReport.Render()
-	fmt.Println("")
-	resetColors()
-}
-
-func formatColumn(t table.Writer, columns []string) table.Writer {
-	nameTransformer := text.Transformer(func(val interface{}) string {
-		return text.Bold.Sprint(val)
-	})
-
-	count := len(columns)
-	columnConfigs := make([]table.ColumnConfig, count)
-
-	for i := 0; i < count; i++ {
-		width := 32
-		if columns[i] == "#" {
-			width = 8
-		} else {
-			width = 32
-		}
-		columnConfigs[i] = table.ColumnConfig{
-			Name:        columns[i],
-			Align:       text.AlignLeft,
-			AlignFooter: text.AlignLeft,
-			AlignHeader: text.AlignLeft,
-			//Colors:            text.Colors{text.BgBlack, text.FgRed},
-			//ColorsHeader:      text.Colors{text.BgRed, text.FgBlack, text.Bold},
-			//ColorsFooter:      text.Colors{text.BgRed, text.FgBlack},
-			Hidden:            false,
-			Transformer:       nameTransformer,
-			TransformerFooter: nameTransformer,
-			TransformerHeader: nameTransformer,
-			VAlign:            text.VAlignMiddle,
-			VAlignFooter:      text.VAlignTop,
-			VAlignHeader:      text.VAlignBottom,
-			WidthMin:          width,
-			WidthMax:          width,
-		}
-	}
-
-	t.SetColumnConfigs(columnConfigs)
-
-	return t
 }
