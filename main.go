@@ -1,5 +1,5 @@
 // Author: Ahmad Hamdi
-//  .\nameShift.exe "path/to/directory" "OldText" "NewText" -ignore-config-dirs=true -work-globally=false -concurrent-run=false -case-matching=true -file-extensions=".go,.md"
+//  .\nsh.exe "path/to/directory" "OldText" "NewText" -ignore-config-dirs=true -work-globally=false -concurrent-run=false -case-matching=true -file-extensions=".go,.md"
 
 package main
 
@@ -20,6 +20,8 @@ var (
 	workGlobally      bool
 	concurrentRun     bool
 	caseMatching      bool
+	Version           = "0.1.2"
+	versionFlag       bool
 	fileExtensions    string
 	errorsCount       int32
 	replacementsCount int32
@@ -41,17 +43,24 @@ func init() {
 	//log.Println("> Entering init function for initializing the flags")
 	customFlagParsing()
 	flag.BoolVar(&ignoreConfig, "ignore-config-dirs", true, "Ignore .config directories 🚫🐙")
-	flag.BoolVar(&workGlobally, "work-globally", false, "Work on folder names, file names, and file contents (default false)🌍✨")
-	flag.BoolVar(&concurrentRun, "concurrent-run", false, "Run each folder inside the root directory in a separate goroutine (default false)🏃💨")
-	flag.BoolVar(&caseMatching, "case-matching", true, "Match case when replacing strings (default true) 👔🔍")
-	flag.StringVar(&fileExtensions, "file-extensions", ".go", "Comma-separated list of file extensions to process, e.g., '.go,.txt' 📄✂️")
+	flag.BoolVar(&ignoreConfig, "i", true, "Ignore .config directories 🚫🐙")
 
-	//log.Printf("> ignore-config-dirs > %t \n", ignoreConfig)
-	//log.Printf("> work-globally > %t \n", workGlobally)
-	//log.Printf("> concurrent-run > %t \n", concurrentRun)
-	//log.Printf("> case-matching > %t \n", caseMatching)
-	//log.Printf("> fileExtensions > %s \n", fileExtensions)
-	//log.Println("> Exiting init after binding the flags")
+	flag.BoolVar(&workGlobally, "work-globally", false, "Work on folder names, file names, and file contents (default false)🌍✨")
+	flag.BoolVar(&workGlobally, "g", false, "Work on folder names, file names, and file contents (default false)🌍✨")
+
+	flag.BoolVar(&concurrentRun, "concurrent-run", false, "Run each folder inside the root directory in a separate goroutine (default false)🏃💨")
+	flag.BoolVar(&concurrentRun, "cr", false, "Run each folder inside the root directory in a separate goroutine (default false)🏃💨")
+
+	flag.BoolVar(&caseMatching, "case-matching", true, "Match case when replacing strings (default true) 👔🔍")
+	flag.BoolVar(&caseMatching, "cm", true, "Match case when replacing strings (default true) 👔🔍")
+
+	flag.StringVar(&fileExtensions, "file-extensions", ".go", "Comma-separated list of file extensions to process, e.g., '.go,.txt' 📄✂️")
+	flag.StringVar(&fileExtensions, "ext", ".go", "Comma-separated list of file extensions to process, e.g., '.go,.txt' 📄✂️")
+	flag.StringVar(&fileExtensions, "exts", ".go", "Comma-separated list of file extensions to process, e.g., '.go,.txt' 📄✂️")
+
+	flag.BoolVar(&versionFlag, "version", false, "Get the current program version 🚀")
+	flag.BoolVar(&versionFlag, "v", false, "Get the current program version 🚀")
+	flag.BoolVar(&versionFlag, "V", false, "Get the current program version 🚀")
 }
 
 func ignoreConfigDirs(path string, err error) error {
@@ -171,7 +180,6 @@ func processPath(path string, info os.FileInfo, theStringToBeReplaced, theReplac
 }
 
 func renameEntities(startingDirectory, theStringToBeReplaced, theReplacementString string) error {
-	//log.Println("> Entering renameEntities")
 	var dirs []string
 	var files []string
 
@@ -257,9 +265,15 @@ func main() {
 	resetColors()
 	printLogo()
 	flag.Parse()
+
+	if versionFlag {
+		color.Cyan(fmt.Sprintf("\n> NameShifter Version: %s 🚀📚\n", Version))
+		os.Exit(0)
+	}
+
 	errorReport = table.NewWriter()
 	if len(flag.Args()) < 3 {
-		color.Red(fmt.Sprintf("\n> Usage: go run nameShifter.go <startingDirectory> <theStringToBeReplaced> <theReplacementString> -flags❗📚👀"))
+		color.Red(fmt.Sprintf("\n> Usage: go run nsh.go <startingDirectory> <theStringToBeReplaced> <theReplacementString> -flags❗📚👀"))
 		os.Exit(1)
 	}
 
