@@ -21,33 +21,33 @@ Here's what this bad boy can do for you:
 
 Getting **nameShift** `nsh` ready to rock is like brewing your favorite coffee - it requires specific steps but the end result is oh-so satisfying. Follow these brewing... I mean, building instructions to get started on both Windows and Unix systems. 🛠️☕
 
-### For Windows Warriors 🪖💻
+### For Windows Warriors 🛠️💻
 
 1. Open your command prompt with a flick of your wrist or a click of your mouse. Feel the power!
 2. Navigate to the root directory of **nsh** where the mystical `build.bat` script resides.
 3. Summon the build script with the ancient incantation:
 
 ```bash
-.\build.bat
+✅ .\build.bat
 ```
 
 Watch as the console comes alive, compiling and concocting your tool into existence. It's like magic, but cooler because it's code. 🧙‍♂️💾
 
-### For Unix Heroes 🦸‍♀️🐧
+### For Unix Heroes 🛠️🐧
 
 1. Open your terminal. You can pretend it's a portal to another dimension if you like - we won't judge.
 2. Trek through the filesystem to the sacred land of **nsh**'s base camp, where `build.sh` has been waiting for centuries (or since you cloned the repo).
 3. With the courage of a thousand penguins, execute the revered script:
 
 ```zsh
-./build.sh
+✅ ./build.sh
 ```
 
 Behold as the script weaves its spells, stitching together binaries and libraries with the elegance of a master craftsman. Or craftswoman. Or craftsperson. You get the idea. 🧵✨
 
 **🍾 Congratulations!** You've now built **nsh**, your very own digital Swiss Army knife, ready to slice and dice strings with the finesse of a gourmet chef in the digital kitchen. Go forth and refactor with reckless abandon, my friend! 🎊🔪
 
-# 🌐 **Installing nameShift, System-Wide** 🌐
+# 🚀 **Installing nsh, System-Wide** 🌐📦
 
 Elevating **nameShift** `nsh` from a mere tool in your digital toolbox to a cornerstone of your system's utility belt is akin to granting it the key to the city. This step ensures `nsh` is not just another tool, but a trusted companion ready at your beck and call, across the vast landscapes of your operating system. 🗝️💼
 
@@ -57,30 +57,30 @@ Elevating **nameShift** `nsh` from a mere tool in your digital toolbox to a corn
 2. Stand at the heart of **nsh**'s domain, where `install.py` resides, a script penned by the sages to transcend OS boundaries.
 3. Invoke the installation script with the authority it requires:
 
-> Unix Installation  
+> 📦 Unix Installation  
 
 **⚠️ Note of Power:** Depending on the defensive enchantments on your system (read: permissions), you might need to invoke this script with elevated privileges. Should you encounter any resistance (errors or access denials), it's time to wield your powers as an administrator. On Unix-like systems, prepend `sudo` to the command, and on Windows, ensure your command prompt wields the might of an administrator. This is not merely a suggestion but a rite of passage for `nsh` to serve you without hindrance. 🛡️🔑
 
 ```zsh
-sudo python3 build/install.py
+✅ sudo python3 build/install.py
 ```
 
-or if you have python installed at /usr/bin/env python3 just run the following directly:  
+> Or if you have python installed at /usr/bin/env python3 just run the following directly:  
 
 ```zsh
-sudo ./build/install.py
+✅ sudo ./build/install.py
 ```
 
-> Windows Installation  
+> 📦 Windows Installation  
 
 ```bash
-python build\\install.py
+✅ python build\\install.py
 ```
 
-> or just run the following directly:  
+> Or just run the following directly:  
 
 ```bash
-.\\build\\install
+✅ .\\build\\install
 ```
 
 As the script springs to life, it meticulously examines the lay of the land (your OS) and lays down the pathways for `nsh` to roam freely. It doesn't just install; it creates a symbolic link (`sem-link`), a beacon for all your command-line endeavors, guiding you to `nsh` whenever the need arises. 🛣️🔗
@@ -94,13 +94,13 @@ As the script springs to life, it meticulously examines the lay of the land (you
 Feel the power coursing through your veins as you command:
 
 ```bash
-.\nsh.exe "path\\to\\directory" "OldText" "NewText" --ignore-config-dirs=true -work-globally=false --concurrent-run=false -case-matching=true -file-extensions=".go,.md"
+✅ .\nsh.exe "path\\to\\directory" "OldText" "NewText" --ignore-config-dirs=true -work-globally=false --concurrent-run=false -case-matching=true -file-extensions=".go,.md"
 ```
 
 Or if you have installed the tool simply run it with:
 
 ```bash
-nsh "path\\to\\directory" "OldText" "NewText" -i=true -g=false --cr=false -cm=true --exts=".go,.md"
+✅ nsh "path\\to\\directory" "OldText" "NewText" -i=true -g=false --cr=false -cm=true --exts=".go,.md"
 ```
 
 #### 🐧 On Unix Systems
@@ -108,14 +108,14 @@ nsh "path\\to\\directory" "OldText" "NewText" -i=true -g=false --cr=false -cm=tr
 Unleash the beast with:
 
 ```zsh
-./nsh "path/to/directory" "OldText" "NewText" --ignore-config-dirs=true --work-globally=false -concurrent-run=false -case-matching=true --file-extensions=".go,.md"
+✅ ./nsh "path/to/directory" "OldText" "NewText" --ignore-config-dirs=true --work-globally=false -concurrent-run=false -case-matching=true --file-extensions=".go,.md"
 ```
 
 
 Or if you have installed the tool simply run it with:
 
 ```zsh
-nsh "path\\to\\directory" "OldText" "NewText" --i=true -g=false --cr=false -cm=true -ext=".go,.md"
+✅ nsh "path\\to\\directory" "OldText" "NewText" --i=true -g=false --cr=false -cm=true -ext=".go,.md"
 ```
 
 # 🤹 **Flexibility & Forgiveness: `nsh`'s Approach to Parameters** 🤹
@@ -132,7 +132,7 @@ In the vast and often unforgiving landscape of command-line tools, **nameShift**
 
 Peek behind the curtain, and you'll find `nsh`'s secret sauce - a custom flag parsing mechanism that breathes life into these user-friendly features. This mechanism is the unsung hero, allowing `nsh` to gracefully handle variations in parameter inputs without breaking a sweat. It's not just code; it's a philosophy woven into the very fabric of `nsh` - to be as adaptable and accommodating as the diverse community it serves. 🌟👥
 
-> **nsh** is not merely a tool; it's a testament to the belief that technology should adapt to humans, not the other way around. With its blend of flexibility, forgiveness, and a touch of whimsy, `nsh` invites you to engage in the art of string manipulation with a sense of ease and joy unparallel in the realm of command-line tools. 🎭🛠️
+> ✅ **nsh** is not merely a tool; it's a testament to the belief that technology should adapt to humans, not the other way around. With its blend of flexibility, forgiveness, and a touch of whimsy, `nsh` invites you to engage in the art of string manipulation with a sense of ease and joy unparallel in the realm of command-line tools. 🎭🛠️
 
 This commitment to user experience makes `nsh` not just a powerful tool in your arsenal but a joy to use, proving that in the digital world, understanding and adaptability are the true hallmarks of innovation. 🚀💡
 
