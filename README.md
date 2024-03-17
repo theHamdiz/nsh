@@ -57,13 +57,35 @@ Elevating **nameShift** `nsh` from a mere tool in your digital toolbox to a corn
 2. Stand at the heart of **nsh**'s domain, where `install.py` resides, a script penned by the sages to transcend OS boundaries.
 3. Invoke the installation script with the authority it requires:
 
+> Unix Installation  
+
+**⚠️ Note of Power:** Depending on the defensive enchantments on your system (read: permissions), you might need to invoke this script with elevated privileges. Should you encounter any resistance (errors or access denials), it's time to wield your powers as an administrator. On Unix-like systems, prepend `sudo` to the command, and on Windows, ensure your command prompt wields the might of an administrator. This is not merely a suggestion but a rite of passage for `nsh` to serve you without hindrance. 🛡️🔑
+
+```zsh
+sudo python3 build/install.py
+```
+
+or if you have python installed at /usr/bin/env python3 just run the following directly:  
+
+```zsh
+sudo ./build/install.py
+```
+
+> Windows Installation  
+
 ```bash
-python3 build/install.py
+python build\\install.py
+```
+
+> or just run the following directly:  
+
+```bash
+.\\build\\install
 ```
 
 As the script springs to life, it meticulously examines the lay of the land (your OS) and lays down the pathways for `nsh` to roam freely. It doesn't just install; it creates a symbolic link (`sem-link`), a beacon for all your command-line endeavors, guiding you to `nsh` whenever the need arises. 🛣️🔗
 
-**⚠️ Note of Power:** Depending on the defensive enchantments on your system (read: permissions), you might need to invoke this script with elevated privileges. Should you encounter any resistance (errors or access denials), it's time to wield your powers as an administrator. On Unix-like systems, prepend `sudo` to the command, and on Windows, ensure your command prompt wields the might of an administrator. This is not merely a suggestion but a rite of passage for `nsh` to serve you without hindrance. 🛡️🔑
+
 
 **🎉 Et Voilà!** You've successfully bestowed upon **nsh** the honor of serving you at a system-wide level. Gone are the days of navigating to its abode for every task. `nsh` is now your ever-present aide, ready to tackle string manipulation challenges at a moment's notice. Journey forth with confidence, knowing that `nsh` is always within reach, a true testament to your command over your digital realm. 🌟🛠️
 
