@@ -1,5 +1,0 @@
-*.sum
-.idea/*
-.git/*
-.gitignore
-target/*
