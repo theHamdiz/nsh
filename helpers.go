@@ -8,7 +8,36 @@ import (
 	"math/rand"
 	"os"
 	"strings"
+	"sync"
+	"sync/atomic"
 )
+
+type AppContext struct {
+	errorsCount       int32
+	replacementsCount int32
+	errorReport       table.Writer
+	mutex             sync.Mutex // Protects errorReport updates.
+}
+
+func NewAppContext() *AppContext {
+	return &AppContext{
+		errorReport: table.NewWriter(),
+	}
+}
+
+func (ctx *AppContext) AddError() {
+	atomic.AddInt32(&ctx.errorsCount, 1)
+}
+
+func (ctx *AppContext) AddReplacement() {
+	atomic.AddInt32(&ctx.replacementsCount, 1)
+}
+
+func (ctx *AppContext) AddErrorReportRow(row []table.Row) {
+	ctx.mutex.Lock()
+	ctx.errorReport.AppendRows(row)
+	ctx.mutex.Unlock()
+}
 
 func resetColors() {
 	reset := color.New(color.Reset).SprintFunc()
@@ -192,7 +221,7 @@ func replacementsAndErrorsReport() {
 	header := []string{"#", "Replacements Made", "Errors Encountered"}
 	t.AppendHeader(table.Row{"#", "Replacements Made", "Errors Encountered"})
 	t.AppendRows([]table.Row{
-		{1, replacementsCount, errorsCount},
+		{1, atomic.LoadInt32(&replacementsCount), atomic.LoadInt32(&errorsCount)},
 	})
 	t.AppendSeparator()
 	t.AppendFooter(table.Row{">", "Shifted", ""})
@@ -203,10 +232,4 @@ func replacementsAndErrorsReport() {
 	fmt.Println("")
 	resetColors()
 	//log.Println("> Exiting the replacementsAndErrorsReport")
-}
-
-func addRowTo(table table.Writer, r []table.Row) table.Writer {
-	table.AppendRows(r)
-	table.AppendSeparator()
-	return table
 }

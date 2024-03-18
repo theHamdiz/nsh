@@ -11,8 +11,10 @@ import (
 	"github.com/jedib0t/go-pretty/v6/table"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
+	"sync/atomic"
 )
 
 var (
@@ -20,7 +22,7 @@ var (
 	workGlobally      bool
 	concurrentRun     bool
 	caseMatching      bool
-	Version           = "0.1.2"
+	Version           = "0.1.3"
 	versionFlag       bool
 	fileExtensions    string
 	errorsCount       int32
@@ -74,204 +76,206 @@ func ignoreConfigDirs(path string, err error) error {
 		if os.IsPermission(err) {
 			return filepath.SkipDir // Skip this file or directory but continue walking
 		}
-		errorsCount++
+		atomic.AddInt32(&errorsCount, 1)
+		return fmt.Errorf("> Error while attempting to ignore .config dirs: %w", err)
+	}
+	return nil
+}
+
+func processPath(ctx *AppContext, path string, info os.FileInfo, theStringToBeReplaced, theReplacementString string) error {
+	if err := ignoreConfigDirs(path, nil); err != nil {
+		row := []table.Row{{"Path", path, "Error", err}}
+		ctx.AddError()
+		ctx.AddErrorReportRow(row)
 		return err
 	}
+
+	// Directly use the newly abstracted renameEntity function for files and directories.
+	if workGlobally && (info.IsDir() || strings.Contains(info.Name(), theStringToBeReplaced)) {
+		if err := renameEntity(ctx, path, theStringToBeReplaced, theReplacementString); err != nil {
+			row := []table.Row{{"Path", path, "Error", fmt.Sprintf("Could not rename: %v", err)}}
+			ctx.AddError()
+			ctx.AddErrorReportRow(row)
+			return err
+		}
+	}
+
+	// For files, check if they should be processed and then process.
+	if shouldProcessFile(path, info) {
+		return processFile(path, theStringToBeReplaced, theReplacementString)
+	}
+
 	return nil
 }
 
-func processPath(path string, info os.FileInfo, theStringToBeReplaced, theReplacementString string) error {
-	if err := ignoreConfigDirs(path, nil); err != nil {
-		row := []table.Row{{1, fmt.Sprintf("%v 🚨", path), err}}
-		addRowTo(errorReport, row)
-		return nil
-	}
-
-	// If global, rename entities first.
-	if workGlobally && info.IsDir() || strings.Contains(info.Name(), theStringToBeReplaced) && workGlobally {
-		err := renameEntities(path, theStringToBeReplaced, theReplacementString)
-		if err != nil {
-			row := []table.Row{{1, fmt.Sprintf("Could not rename this directory: %s 📕🚫", path), err}}
-			addRowTo(errorReport, row)
-			return nil
-		}
-	}
-
-	// If fileExtensions are provided
-	if fileExtensions != "" {
-		exts := strings.Split(fileExtensions, ",")
-		match := false
-		for _, ext := range exts {
-			if strings.HasSuffix(info.Name(), ext) {
-				match = true
-				break
+func renameEntity(ctx *AppContext, entityPath, theStringToBeReplaced, theReplacementString string) error {
+	newPath := strings.Replace(entityPath, theStringToBeReplaced, theReplacementString, -1)
+	if err := os.Rename(entityPath, newPath); err != nil {
+		if os.IsPermission(err) {
+			if permErr := os.Chmod(entityPath, 0666); permErr != nil {
+				ctx.AddError()
+				return permErr // Permission change failed, return the error
 			}
-		}
-		if !match {
-			return nil // Skip this file if not a single match was found!
-		}
-	}
-
-	// Now rename file contents
-	if !info.IsDir() {
-		readFile, err := os.Open(path)
-		if err != nil {
-			errorsCount++
-			row := []table.Row{{3, fmt.Sprintf("Error opening %s 🚨", path), err}}
-			addRowTo(errorReport, row)
-			return nil
-		}
-		defer func(readFile *os.File) {
-			err := readFile.Close()
-			if err != nil {
-				errorsCount++
-				row := []table.Row{{3, fmt.Sprintf("Could not save the file 🚨"), err}}
-				addRowTo(errorReport, row)
+			if retryErr := os.Rename(entityPath, newPath); retryErr != nil {
+				ctx.AddError()
+				return retryErr // Rename still failed, return the error
 			}
-		}(readFile)
-
-		scanner := bufio.NewScanner(readFile)
-		var txt []string
-		for scanner.Scan() {
-			line := scanner.Text()
-			if strings.Contains(line, theStringToBeReplaced) {
-				line = strings.Replace(line, theStringToBeReplaced, theReplacementString, -1)
-				replacementsCount++
-			}
-			txt = append(txt, line)
-		}
-
-		if err := scanner.Err(); err != nil {
-			errorsCount++
-			row := []table.Row{{3, fmt.Sprintf("Error processing %s 🚨", path), err}}
-			addRowTo(errorReport, row)
-			return nil
-		}
-
-		writeFile, err := os.OpenFile(path, os.O_WRONLY|os.O_TRUNC, info.Mode())
-		if err != nil {
-			errorsCount++
-			row := []table.Row{{3, fmt.Sprintf("Error opening %s 🚨", path), err}}
-			addRowTo(errorReport, row)
-			return nil
-		}
-		defer func(writeFile *os.File) {
-			err := writeFile.Close()
-			if err != nil {
-				errorsCount++
-				row := []table.Row{{3, fmt.Sprintf("Error saving file 🚨"), err}}
-				addRowTo(errorReport, row)
-			}
-		}(writeFile)
-
-		for _, line := range txt {
-			_, err := writeFile.WriteString(line + "\n")
-			if err != nil {
-				errorsCount++
-				row := []table.Row{{3, fmt.Sprintf("Error processing %s 🚨", path), err}}
-				addRowTo(errorReport, row)
-				return nil
-			}
-		}
-	}
-
-	resetColors()
-	return nil
-}
-
-func renameEntities(startingDirectory, theStringToBeReplaced, theReplacementString string) error {
-	var dirs []string
-	var files []string
-
-	// First, accumulate directories and files
-	err := filepath.Walk(startingDirectory, func(path string, info os.FileInfo, err error) error {
-		if info.IsDir() {
-			//log.Printf("> renameEntities > appending dir: %s\n", path)
-			dirs = append(dirs, path)
 		} else {
-			//log.Printf("> renameEntities > appending file: %s\n", path)
-			files = append(files, path)
+			ctx.AddError()
+			return err // Non-permission error encountered, return it
 		}
+	}
+	ctx.AddReplacement()
+	return nil // Successfully renamed the entity
+}
+
+func replaceString(original, toReplace, replacement string, caseSensitive bool) string {
+	if caseSensitive {
+		return strings.Replace(original, toReplace, replacement, -1)
+	}
+	regex := regexp.MustCompile("(?i)" + regexp.QuoteMeta(toReplace))
+	return regex.ReplaceAllString(original, replacement)
+}
+
+func processFile(path, theStringToBeReplaced, theReplacementString string) error {
+	originalFile, err := os.Open(path)
+	if err != nil {
+		atomic.AddInt32(&errorsCount, 1)
+		return err
+	}
+	defer func(originalFile *os.File) {
+		err := originalFile.Close()
+		if err != nil {
+			fmt.Println("> Error while attempting to close the file: %w", err)
+		}
+	}(originalFile) // We'll still defer the close here, as it's simpler and still safe.
+
+	// Create a temp file. Note: We're not deferring the cleanup here because we want to control it precisely.
+	tempFile, err := os.CreateTemp("", "prefix")
+	if err != nil {
+		atomic.AddInt32(&errorsCount, 1)
+		return err
+	}
+
+	// Ensure we clean up the temp file in every possible exit path after this point.
+	// This defer statement is critical for making sure the temp file is always removed.
+	defer func() {
+		err := tempFile.Close()
+		if err != nil {
+			return
+		} // Attempt to close the temp file. Ignoring errors here as we're going to delete it anyway.
+		err = os.Remove(tempFile.Name())
+		if err != nil {
+			return
+		} // Attempt to remove the file. If this fails, there's not much more we can do.
+	}()
+
+	scanner := bufio.NewScanner(originalFile)
+	writer := bufio.NewWriter(tempFile)
+
+	for scanner.Scan() {
+		line := scanner.Text()
+		modifiedLine := replaceString(line, theStringToBeReplaced, theReplacementString, caseMatching)
+		if _, err := writer.WriteString(modifiedLine + "\n"); err != nil {
+			atomic.AddInt32(&errorsCount, 1)
+			return err // No need for additional cleanup, defer will handle it.
+		}
+		if modifiedLine != line {
+			atomic.AddInt32(&replacementsCount, 1) // Increment only if a replacement occurred
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		atomic.AddInt32(&errorsCount, 1)
+		return err // No need for additional cleanup, defer will handle it.
+	}
+
+	if err := writer.Flush(); err != nil {
+		atomic.AddInt32(&errorsCount, 1)
+		return err // No need for additional cleanup, defer will handle it.
+	}
+
+	// Closing the temp file before renaming it. This is necessary on some systems like Windows.
+	if err := tempFile.Close(); err != nil {
+		atomic.AddInt32(&errorsCount, 1)
+		return err // The file is still going to be removed due to the defer.
+	}
+
+	// Replace the original file with the temp file.
+	if err := os.Rename(tempFile.Name(), path); err != nil {
+		atomic.AddInt32(&errorsCount, 1)
+		return err // The file is still going to be removed due to the defer.
+	}
+
+	return nil
+}
+
+func shouldProcessFile(path string, info os.FileInfo) bool {
+	if !info.IsDir() {
+		exts := strings.Split(fileExtensions, ",")
+		for _, ext := range exts {
+			if strings.HasSuffix(path, ext) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func collectPaths(startingDir string, ignoreConfig bool) ([]string, error) {
+	var paths []string
+	err := filepath.Walk(startingDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		// Skip .config directories if ignoreConfig is true
+		if ignoreConfig && info.IsDir() && strings.HasPrefix(info.Name(), ".") {
+			return filepath.SkipDir
+		}
+
+		paths = append(paths, path)
 		return nil
 	})
 
-	if err != nil {
-		row := []table.Row{{3, err}}
-		addRowTo(errorReport, row)
-		errorsCount++
-		return nil
+	return paths, err
+}
+
+func processPaths(ctx *AppContext, paths []string, theStringToBeReplaced, theReplacementString string) {
+	var wg sync.WaitGroup
+
+	for _, path := range paths {
+		wg.Add(1)
+		go func(p string) {
+			defer wg.Done()
+
+			info, err := os.Stat(p)
+			if err != nil {
+				// Handle error, possibly update ctx with the error information
+				ctx.AddError()
+				return
+			}
+
+			if err := processPath(ctx, p, info, theStringToBeReplaced, theReplacementString); err != nil {
+				// Handle error, possibly update ctx with the error information
+				ctx.AddError()
+			}
+		}(path)
 	}
 
-	var (
-		newPath string
-		newName string
-	)
-
-	for _, dir := range dirs {
-
-		err := os.Chmod(dir, 0666)
-		if err != nil {
-			errorsCount++
-			row := []table.Row{{3, "Failed to set directory permissions", err}}
-			addRowTo(errorReport, row)
-		}
-
-		// Isolate the directory name from its path
-		dirName := filepath.Base(dir)
-		parentDir := filepath.Dir(dir)
-		//grandDir := filepath.Dir(parentDir)
-
-		color.Green("\n> Dir => %s\n", dirName)
-		color.Green("\n> Parent Dir => %s\n", parentDir)
-
-		// Replace only in the directory name, not the entire path
-		newName = strings.Replace(dirName, theStringToBeReplaced, theReplacementString, -1)
-		newPath = filepath.Join(parentDir, newName)
-
-		if err := os.Rename(dir, newPath); err != nil {
-			errorsCount++
-			row := []table.Row{{3, fmt.Sprintf("Error renaming %s to %s 😵💔", dir, newPath), err}}
-			addRowTo(errorReport, row)
-			return err
-		}
-		replacementsCount++
-	}
-
-	// Rename files
-	for _, file := range files {
-		err := os.Chmod(file, 0666)
-		if err != nil {
-			errorsCount++
-			row := []table.Row{{3, "Failed to set file permissions", err}}
-			addRowTo(errorReport, row)
-		}
-
-		newPath = filepath.Join(filepath.Dir(file), newName)
-
-		if err := os.Rename(file, newPath); err != nil {
-			errorsCount++
-			row := []table.Row{{3, fmt.Sprintf("Error renaming %s to %s 😵💔", file, newPath), err}}
-			addRowTo(errorReport, row)
-			return err
-		}
-		replacementsCount++
-	}
-
-	resetColors()
-	return nil
+	wg.Wait()
 }
 
 func main() {
 	resetColors()
 	printLogo()
 	flag.Parse()
+	ctx := NewAppContext()
 
 	if versionFlag {
 		color.Cyan(fmt.Sprintf("\n> NameShifter Version: %s 🚀📚\n", Version))
 		os.Exit(0)
 	}
 
-	errorReport = table.NewWriter()
 	if len(flag.Args()) < 3 {
 		color.Red(fmt.Sprintf("\n> Usage: go run nsh.go <startingDirectory> <theStringToBeReplaced> <theReplacementString> -flags❗📚👀"))
 		os.Exit(1)
@@ -279,31 +283,38 @@ func main() {
 
 	args := flag.Args()
 	startingDirectory, theStringToBeReplaced, theReplacementString := args[0], args[1], args[2]
-
+	paths, err := collectPaths(startingDirectory, ignoreConfig)
+	if err != nil {
+		fmt.Println("Error collecting paths:", err)
+		os.Exit(1)
+	}
 	printSettings()
+
 	var wg sync.WaitGroup
 
-	err := filepath.Walk(startingDirectory, func(path string, info os.FileInfo, err error) error {
-		if concurrentRun && info.IsDir() {
-			wg.Add(1)
-			go func(path string, info os.FileInfo) {
-				defer wg.Done()
-				if err := processPath(path, info, theStringToBeReplaced, theReplacementString); err != nil {
-					row := []table.Row{{4, fmt.Sprintf("🚨"), err}}
-					addRowTo(errorReport, row)
-				}
-			}(path, info)
-			return filepath.SkipDir
-		} else {
-			return processPath(path, info, theStringToBeReplaced, theReplacementString)
+	if concurrentRun {
+		processPaths(ctx, paths, theStringToBeReplaced, theReplacementString)
+	} else {
+		for _, path := range paths {
+			info, err := os.Stat(path)
+			if err != nil {
+				// Handle error, possibly update ctx with the error information
+				ctx.AddError()
+				continue
+			}
+			err = processPath(ctx, path, info, theStringToBeReplaced, theReplacementString)
+			if err != nil {
+				fmt.Println("> Error processing path:", err)
+				return
+			}
 		}
-	})
+	}
 
 	wg.Wait()
 
 	if err != nil {
 		row := []table.Row{{3, fmt.Sprintf("Error walking through %s 😢👣", startingDirectory), err}}
-		addRowTo(errorReport, row)
+		ctx.AddErrorReportRow(row)
 		//os.Exit(2)
 	} else {
 		color.Green(fmt.Sprintf("\n> Names Shifted Successfully! 🎉📝✅\n"))
