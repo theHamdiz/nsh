@@ -80,7 +80,7 @@ Elevating **nameShift** `nsh` from a mere tool in your digital toolbox to a corn
 > Or just run the following directly:  
 
 ```bash
-✅ .\\build\\install
+✅ build\\install
 ```
 
 As the script springs to life, it meticulously examines the lay of the land (your OS) and lays down the pathways for `nsh` to roam freely. It doesn't just install; it creates a symbolic link (`sem-link`), a beacon for all your command-line endeavors, guiding you to `nsh` whenever the need arises. 🛣️🔗

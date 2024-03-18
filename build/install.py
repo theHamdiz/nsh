@@ -5,9 +5,18 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
+import ctypes  # For checking admin rights on Windows
 
 
 class FileManager:
+    @staticmethod
+    def check_admin():
+        """Check if the script is running with administrative privileges."""
+        try:
+            return ctypes.windll.shell32.IsUserAnAdmin()
+        except:
+            return False  # Unable to check, so assume it's not an admin
+
     @staticmethod
     def set_permissions_and_make_removable(target_dir="target", file_permission=0o755, dir_permission=0o777):
         target_dir_path = Path(target_dir)
@@ -16,9 +25,13 @@ class FileManager:
 
     @staticmethod
     def move_executable(build_executable_path, target_dir, executable_name):
+        if not FileManager.check_admin():
+            print("> Error: Administrator permissions required to move executable.")
+            sys.exit(1)
+
         target_path = Path(target_dir) / 'theHamdiz' / executable_name
         if not target_path.parent.exists():
-            target_path.parent.mkdir(parents=True)
+            target_path.parent.mkdir(parents=True, exist_ok=True)
         shutil.move(str(build_executable_path), str(target_path))
         return target_path
 
@@ -38,21 +51,14 @@ class EnvironmentManager:
     @staticmethod
     def add_to_system_path(target_path):
         try:
-            # Get the absolute path of the target directory
-            target_dir_path = Path(target_path).resolve()
-            # Get the current PATH environment variable
-            current_path = os.environ.get('PATH', '')
-            # Check if the target directory is already in PATH
-            if str(target_dir_path) not in current_path:
-                # If it's not, append it to PATH
-                new_path = f"{current_path};{target_dir_path}"
-                # Set the new PATH environment variable
-                subprocess.run(['setx', 'PATH', new_path], check=True)
-                print('> Successfully added the target directory to PATH.')
+            # Use the target path's directory, as we add the directory, not the file itself, to PATH
+            target_dir_path = Path(target_path).parent.resolve()
+            # Use the 'setx' command to add the directory to PATH persistently
+            subprocess.run(['setx', 'PATH', f"%PATH%;{target_dir_path}"], shell=True, check=True)
+            print('> Successfully added the target directory to PATH.')
         except Exception as e:
-            print(
-                f'> Error: Could not add the target directory to PATH.\n> {e}\n> Try running the script as an '
-                f'administrator.')
+            print(f'> Error: Could not add the target directory to PATH.\n> {e}\n> Try running the script as an '
+                  f'administrator.')
             sys.exit(1)
 
 
@@ -75,7 +81,13 @@ class BuildManager:
         build_script = self.build_scripts.get(self.platform)
         if build_script:
             try:
-                subprocess.run(['./' + build_script], shell=True, check=True)
+                if self.platform != "win32":
+                    subprocess.run(['./' + build_script], shell=True, check=True)
+                else:
+                    try:
+                        subprocess.run([build_script], shell=True, check=True)
+                    except:
+                        subprocess.run(['build.bat'], shell=True, check=True)
                 print(f'> Successfully built the project using {build_script}.')
             except subprocess.CalledProcessError as e:
                 print(f'> Error: Could not find or execute the build script {build_script}.\n> {e}')
@@ -104,6 +116,10 @@ class BuildManager:
 
 
 if __name__ == '__main__':
+    if not FileManager.check_admin() and sys.platform == "win32":
+        print("This script requires administrative privileges. Please run as administrator.")
+        sys.exit(1)
+
     build_manager = BuildManager()
     build_manager.run_build_script()
     build_manager.install_executable()
