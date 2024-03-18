@@ -39,6 +39,36 @@ func (ctx *AppContext) AddErrorReportRow(row []table.Row) {
 	ctx.mutex.Unlock()
 }
 
+func (ctx *AppContext) DisplayErrorReport() {
+	ctx.errorReport.SetOutputMirror(os.Stdout)
+	header := table.Row{"#", "Directory", "Error Details"}
+	ctx.errorReport.AppendHeader(header)
+	ctx.errorReport.AppendFooter(table.Row{"Error", "Report", "Done"})
+	ctx.errorReport = formatColumn(ctx.errorReport, header)
+	ctx.errorReport.SetStyle(table.StyleColoredRedWhiteOnBlack)
+	ctx.errorReport.Render()
+	fmt.Println("")
+	resetColors() // Assuming resetColors is a function that resets terminal color settings.
+}
+
+func (ctx *AppContext) ReplacementsAndErrorsReport() {
+	t := table.NewWriter()
+	t.SetOutputMirror(os.Stdout)
+	header := table.Row{"#", "Replacements Made", "Errors Encountered"}
+	t.AppendHeader(header)
+	t.AppendRows([]table.Row{
+		{1, atomic.LoadInt32(&ctx.replacementsCount), atomic.LoadInt32(&ctx.errorsCount)},
+	})
+	t.AppendSeparator()
+	t.AppendFooter(table.Row{">", "Shifted", ""})
+
+	t = formatColumn(t, header)
+	t.SetStyle(table.StyleColoredBlackOnYellowWhite)
+	t.Render()
+	fmt.Println("")
+	resetColors() // Assuming resetColors is a function that resets terminal color settings.
+}
+
 func resetColors() {
 	reset := color.New(color.Reset).SprintFunc()
 	fmt.Printf(reset(""))
@@ -132,8 +162,8 @@ func printSettings() {
 	fmt.Println(magenta(fmt.Sprintf("\n> nsh called with the following arguments:\n")))
 	t := table.NewWriter()
 	t.SetOutputMirror(os.Stdout)
-	header := []string{"#", "Argument Name", "Argument Value"}
-	t.AppendHeader(table.Row{"#", "Argument Name", "Argument Value"})
+	header := table.Row{"#", "Argument Name", "Argument Value"}
+	t.AppendHeader(header)
 	for i := range os.Args {
 		argName := ""
 		if i == 0 {
@@ -162,42 +192,33 @@ func printSettings() {
 	//log.Println("> Exiting printSettings")
 }
 
-func displayErrorReport() {
-	errorReport.SetOutputMirror(os.Stdout)
-	header := []string{"#", "Directory", "Error Details"}
-	errorReport.AppendHeader(table.Row{"#", "Directory", "Error Details"})
-	errorReport.AppendFooter(table.Row{"Error", "Report", "Done"})
-	errorReport = formatColumn(errorReport, header)
-	errorReport.SetStyle(table.StyleColoredRedWhiteOnBlack)
-	errorReport.Render()
-	fmt.Println("")
-	resetColors()
-}
-
-func formatColumn(t table.Writer, columns []string) table.Writer {
+// formatColumn configures column properties based on provided column names within the table.Row.
+func formatColumn(t table.Writer, row table.Row) table.Writer {
 	nameTransformer := text.Transformer(func(val interface{}) string {
+		// Ensure conversion to string for the transformation, as val is of type interface{}.
 		return text.Bold.Sprint(val)
 	})
 
-	count := len(columns)
-	columnConfigs := make([]table.ColumnConfig, count)
+	columnConfigs := make([]table.ColumnConfig, len(row))
 
-	for i := 0; i < count; i++ {
+	for i, column := range row {
 		width := 32
-		if columns[i] == "#" {
-			width = 8
-		} else {
-			width = 32
+		columnName, ok := column.(string)
+		if !ok {
+			// If the column isn't a string, skip configuration.
+			// Alternatively, you could convert to string or handle differently.
+			continue
 		}
+
+		if columnName == "#" {
+			width = 8
+		}
+
 		columnConfigs[i] = table.ColumnConfig{
-			Name:        columns[i],
-			Align:       text.AlignLeft,
-			AlignFooter: text.AlignLeft,
-			AlignHeader: text.AlignLeft,
-			//Colors:            text.Colors{text.BgBlack, text.FgRed},
-			//ColorsHeader:      text.Colors{text.BgRed, text.FgBlack, text.Bold},
-			//ColorsFooter:      text.Colors{text.BgRed, text.FgBlack},
-			Hidden:            false,
+			Name:              columnName,
+			Align:             text.AlignLeft,
+			AlignFooter:       text.AlignLeft,
+			AlignHeader:       text.AlignLeft,
 			Transformer:       nameTransformer,
 			TransformerFooter: nameTransformer,
 			TransformerHeader: nameTransformer,
@@ -209,27 +230,7 @@ func formatColumn(t table.Writer, columns []string) table.Writer {
 		}
 	}
 
-	t.SetColumnConfigs(columnConfigs)
+	(t).SetColumnConfigs(columnConfigs)
 
 	return t
-}
-
-func replacementsAndErrorsReport() {
-	//log.Println("> Entering the replacementsAndErrorsReport")
-	t := table.NewWriter()
-	t.SetOutputMirror(os.Stdout)
-	header := []string{"#", "Replacements Made", "Errors Encountered"}
-	t.AppendHeader(table.Row{"#", "Replacements Made", "Errors Encountered"})
-	t.AppendRows([]table.Row{
-		{1, atomic.LoadInt32(&replacementsCount), atomic.LoadInt32(&errorsCount)},
-	})
-	t.AppendSeparator()
-	t.AppendFooter(table.Row{">", "Shifted", ""})
-
-	t = formatColumn(t, header)
-	t.SetStyle(table.StyleColoredBlackOnYellowWhite)
-	t.Render()
-	fmt.Println("")
-	resetColors()
-	//log.Println("> Exiting the replacementsAndErrorsReport")
 }

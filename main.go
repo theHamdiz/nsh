@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"github.com/fatih/color"
 	"github.com/jedib0t/go-pretty/v6/table"
+	"io"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -110,13 +111,13 @@ func processPath(ctx *AppContext, path string, info os.FileInfo, theStringToBeRe
 
 func renameEntity(ctx *AppContext, entityPath, theStringToBeReplaced, theReplacementString string) error {
 	newPath := strings.Replace(entityPath, theStringToBeReplaced, theReplacementString, -1)
-	if err := os.Rename(entityPath, newPath); err != nil {
+	if err := moveFile(entityPath, newPath); err != nil {
 		if os.IsPermission(err) {
 			if permErr := os.Chmod(entityPath, 0666); permErr != nil {
 				ctx.AddError()
 				return permErr // Permission change failed, return the error
 			}
-			if retryErr := os.Rename(entityPath, newPath); retryErr != nil {
+			if retryErr := moveFile(entityPath, newPath); retryErr != nil {
 				ctx.AddError()
 				return retryErr // Rename still failed, return the error
 			}
@@ -151,7 +152,7 @@ func processFile(path, theStringToBeReplaced, theReplacementString string) error
 	}(originalFile) // We'll still defer the close here, as it's simpler and still safe.
 
 	// Create a temp file. Note: We're not deferring the cleanup here because we want to control it precisely.
-	tempFile, err := os.CreateTemp("", "prefix")
+	tempFile, err := os.CreateTemp("", "nsh_temp_file_")
 	if err != nil {
 		atomic.AddInt32(&errorsCount, 1)
 		return err
@@ -201,9 +202,43 @@ func processFile(path, theStringToBeReplaced, theReplacementString string) error
 	}
 
 	// Replace the original file with the temp file.
-	if err := os.Rename(tempFile.Name(), path); err != nil {
+	if err := moveFile(tempFile.Name(), path); err != nil {
 		atomic.AddInt32(&errorsCount, 1)
 		return err // The file is still going to be removed due to the defer.
+	}
+
+	return nil
+}
+
+// moveFile handles moving a file from src to dst, working across different file systems/devices.
+func moveFile(src, dst string) error {
+	// Open the source file for reading.
+	sourceFile, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer sourceFile.Close()
+
+	// Create the destination file for writing.
+	destinationFile, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer destinationFile.Close()
+
+	// Copy the contents of the source file to the destination file.
+	if _, err := io.Copy(destinationFile, sourceFile); err != nil {
+		return err
+	}
+
+	// Ensure the destination file is fully written and closed.
+	if err := destinationFile.Sync(); err != nil {
+		return err
+	}
+
+	// Delete the original (source) file.
+	if err := os.Remove(src); err != nil {
+		return err
 	}
 
 	return nil
@@ -305,7 +340,7 @@ func main() {
 			err = processPath(ctx, path, info, theStringToBeReplaced, theReplacementString)
 			if err != nil {
 				fmt.Println("> Error processing path:", err)
-				return
+				continue
 			}
 		}
 	}
@@ -320,7 +355,7 @@ func main() {
 		color.Green(fmt.Sprintf("\n> Names Shifted Successfully! 🎉📝✅\n"))
 	}
 
-	displayErrorReport()
-	replacementsAndErrorsReport()
+	ctx.DisplayErrorReport()
+	ctx.ReplacementsAndErrorsReport()
 	os.Exit(0)
 }
