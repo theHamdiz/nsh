@@ -16,6 +16,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 )
 
 var (
@@ -111,13 +112,13 @@ func processPath(ctx *AppContext, path string, info os.FileInfo, theStringToBeRe
 
 func renameEntity(ctx *AppContext, entityPath, theStringToBeReplaced, theReplacementString string) error {
 	newPath := strings.Replace(entityPath, theStringToBeReplaced, theReplacementString, -1)
-	if err := moveFile(entityPath, newPath); err != nil {
+	if err := moveFileWithRetry(entityPath, newPath, 6); err != nil {
 		if os.IsPermission(err) {
 			if permErr := os.Chmod(entityPath, 0666); permErr != nil {
 				ctx.AddError()
 				return permErr // Permission change failed, return the error
 			}
-			if retryErr := moveFile(entityPath, newPath); retryErr != nil {
+			if retryErr := moveFileWithRetry(entityPath, newPath, 6); retryErr != nil {
 				ctx.AddError()
 				return retryErr // Rename still failed, return the error
 			}
@@ -202,7 +203,7 @@ func processFile(path, theStringToBeReplaced, theReplacementString string) error
 	}
 
 	// Replace the original file with the temp file.
-	if err := moveFile(tempFile.Name(), path); err != nil {
+	if err := moveFileWithRetry(tempFile.Name(), path, 6); err != nil {
 		atomic.AddInt32(&errorsCount, 1)
 		return err // The file is still going to be removed due to the defer.
 	}
@@ -242,6 +243,27 @@ func moveFile(src, dst string) error {
 	}
 
 	return nil
+}
+
+func moveFileWithRetry(src, dst string, maxRetries int) error {
+	var lastErr error
+	retryDelay := 2 // Initial delay in seconds
+
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		err := moveFile(src, dst)
+		if err == nil {
+			return nil // Success, file moved
+		}
+
+		lastErr = err
+		// Log or print the retry attempt and wait time, can be helpful for debugging
+		fmt.Printf("> Attempt %d failed to move file. Retrying in %d seconds...\n", attempt+1, retryDelay)
+
+		time.Sleep(time.Duration(retryDelay) * time.Second)
+		retryDelay *= 2 // Exponential increase of the wait time for the next retry
+	}
+
+	return fmt.Errorf("> moveFileWithRetry failed after %d attempts: %v", maxRetries, lastErr)
 }
 
 func shouldProcessFile(path string, info os.FileInfo) bool {
@@ -339,7 +361,7 @@ func main() {
 			}
 			err = processPath(ctx, path, info, theStringToBeReplaced, theReplacementString)
 			if err != nil {
-				fmt.Println("> Error processing path:", err)
+				//fmt.Println("> Error processing path:", err)
 				continue
 			}
 		}
