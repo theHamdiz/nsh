@@ -32,7 +32,7 @@ class FileManager:
         target_path = Path(target_dir) / 'theHamdiz' / executable_name
         if not target_path.parent.exists():
             target_path.parent.mkdir(parents=True, exist_ok=True)
-        shutil.move(str(build_executable_path), str(target_path))
+        shutil.copy(str(build_executable_path), str(target_path))
         return target_path
 
     @staticmethod
