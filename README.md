@@ -19,31 +19,27 @@ Here's what this bad boy can do for you:
 
 # 🚧 **Build Instructions** 🚧
 
-Getting **nameShift** `nsh` ready to rock is like brewing your favorite coffee - it requires specific steps but the end result is oh-so satisfying. Follow these brewing... I mean, building instructions to get started on both Windows and Unix systems. 🛠️☕
+Getting **nameShift** `nsh` ready to rock is as easy as it sounds; Follow these building instructions to get started on both Windows and Unix systems. 🛠️☕
 
 ### For Windows Warriors 🛠️💻
 
-1. Open your command prompt with a flick of your wrist or a click of your mouse. Feel the power!
-2. Navigate to the root directory of **nsh** where the mystical `build.bat` script resides.
-3. Summon the build script with the ancient incantation:
+1. Open your command prompt!
+2. Navigate to the root directory of **nsh** where the `build.bat` script resides.
+3. Build it:
 
 ```bash
 ✅ .\build.bat
 ```
 
-Watch as the console comes alive, compiling and concocting your tool into existence. It's like magic, but cooler because it's code. 🧙‍♂️💾
-
 ### For Unix Heroes 🛠️🐧
 
-1. Open your terminal. You can pretend it's a portal to another dimension if you like - we won't judge.
-2. Trek through the filesystem to the sacred land of **nsh**'s base camp, where `build.sh` has been waiting for centuries (or since you cloned the repo).
-3. With the courage of a thousand penguins, execute the revered script:
+1. Open your terminal.
+2. Trek through the filesystem to the sacred land of **nsh**'s base camp, where `build.sh` is located.
+3. Execute the revered script:
 
 ```zsh
 ✅ ./build.sh
 ```
-
-Behold as the script weaves its spells, stitching together binaries and libraries with the elegance of a master craftsman. Or craftswoman. Or craftsperson. You get the idea. 🧵✨
 
 **🍾 Congratulations!** You've now built **nsh**, your very own digital Swiss Army knife, ready to slice and dice strings with the finesse of a gourmet chef in the digital kitchen. Go forth and refactor with reckless abandon, my friend! 🎊🔪
 
@@ -122,7 +118,7 @@ Or if you have installed the tool simply run it with:
 
 In the vast and often unforgiving landscape of command-line tools, **nameShift** `nsh` stands out as a beacon of flexibility and understanding. Recognizing that the road to perfection is paved with typos and preferences, `nsh` is designed to accommodate your unique journey. Whether you favor the scenic route with `--long-form-parameters` or the express lane with `-s` shortcuts, `nsh` adapts to your style, not the other way around. 🛣️🚀
 
-### 🌈 **A Spectrum of Choices** 🌈
+### **A Spectrum of Choices**
 
 - **Dual Parameter Personalities**: Each command in `nsh` has been bestowed with two personas - a verbose, descriptive one for clarity (`--ignore-config-dirs`), and a concise, shorthand alias for efficiency (`-i`). This duality ensures that whether you're a detail-oriented wizard or a speed-seeking knight, `nsh` speaks your language. 🗣️✨
 
@@ -156,6 +152,7 @@ As mighty as **nsh** stands, the quest for perfection is never-ending. Here are 
 - [ ] **Advanced Pattern Matching**: Implement regex support for the adventurers who need to capture or transform more complex string patterns.
 - [ ] **Localization Support**: Making `nsh` a true citizen of the world by supporting multiple languages in its interface.
 - [ ] **Plugin Ecosystem**: Enabling the community to extend `nsh` with their own spells and enchantments through plugins.
+- [ ] **FFI Function Exposure**: Enabling the community to use `nsh` outside of the go realm.
 
 > **nsh** is not merely a tool; it's a companion on your journey through the digital realm. Whether against `vidir`, `sed`, or any other, `nsh` stands tall, ready to tackle any challenge with you. 🛡️🚀
 
