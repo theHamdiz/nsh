@@ -74,26 +74,6 @@ func init() {
 	customFlagParsing()
 }
 
-
-func collectPaths(startingDir string, ignoreConfig bool) ([]string, error) {
-	var paths []string
-	err := filepath.Walk(startingDir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-
-		// Skip .config directories if ignoreConfig is true
-		if ignoreConfig && info.IsDir() && strings.HasPrefix(info.Name(), ".") {
-			return filepath.SkipDir
-		}
-
-		paths = append(paths, path)
-		return nil
-	})
-
-	return paths, err
-}
-
 // NameShifter encapsulates all functionalities related to the name shifting process.
 type NameShifter struct {
 	Config  *Config
@@ -106,6 +86,26 @@ func NewNameShifter(cfg *Config, ctx *AppContext) *NameShifter {
 		Config:  cfg,
 		Context: ctx,
 	}
+}
+
+// collectPaths walks the starting directory and collects all paths.
+func (ns *NameShifter) collectPaths(startingDir string) ([]string, error) {
+	var paths []string
+	err := filepath.Walk(startingDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		// Skip .config directories if ignoreConfig is true
+		if ns.Config.IgnoreConfig && info.IsDir() && strings.HasPrefix(info.Name(), ".") {
+			return filepath.SkipDir
+		}
+
+		paths = append(paths, path)
+		return nil
+	})
+
+	return paths, err
 }
 
 // ProcessAllPaths decides whether to process paths concurrently or sequentially based on the configuration.
@@ -137,6 +137,7 @@ func (ns *NameShifter) processPathsSequentially(paths []string, theStringToBeRep
 	}
 }
 
+// processSinglePath processes a single path, deciding whether to rename the entity and/or process the file.
 func (ns *NameShifter) processSinglePath(path, theStringToBeReplaced, theReplacementString string) {
 	info, err := os.Stat(path)
 	if err != nil {
@@ -411,7 +412,7 @@ func main() {
 
 	args := flag.Args()
 	startingDirectory, theStringToBeReplaced, theReplacementString := args[0], args[1], args[2]
-	paths, err := collectPaths(startingDirectory, cfg.IgnoreConfig)
+	paths, err := ns.collectPaths(startingDirectory)
 	if err != nil {
 		fmt.Println("> Error collecting paths:", err)
 		os.Exit(1)
