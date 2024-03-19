@@ -49,6 +49,9 @@ func NewConfig() *Config {
 	flag.Parse()
 
 	cfg.FileExtensions = strings.Split(fileExtensions, ",")
+	for i, ext := range cfg.FileExtensions {
+		cfg.FileExtensions[i] = strings.TrimSpace(ext) // Trim spaces around extensions
+	}
 	return cfg
 }
 
@@ -86,6 +89,8 @@ func NewNameShifter(cfg *Config, ctx *AppContext) *NameShifter {
 func (ns *NameShifter) collectPaths(startingDir string) ([]string, error) {
 	var paths []string
 	err := filepath.Walk(startingDir, func(path string, info os.FileInfo, err error) error {
+		//fmt.Printf("Visiting: %s\n", path)
+
 		if err != nil {
 			return err
 		}
@@ -216,7 +221,13 @@ func (ns *NameShifter) processFile(path, theStringToBeReplaced, theReplacementSt
 
 	for scanner.Scan() {
 		line := scanner.Text()
+
 		modifiedLine := ns.replaceString(line, theStringToBeReplaced, theReplacementString)
+
+		//if modifiedLine != line {
+		//	fmt.Printf("Original: %s\n", line)
+		//	fmt.Printf("Modified: %s\n", modifiedLine)
+		//}
 		if _, err := writer.WriteString(modifiedLine + "\n"); err != nil {
 			ns.Context.AddError()
 			return err
@@ -317,6 +328,7 @@ func (ns *NameShifter) moveFileWithRetry(src, dst string, maxRetries int) error 
 }
 
 func (ns *NameShifter) shouldProcessFile(path string, info os.FileInfo) bool {
+	//return !info.IsDir() // Process all files, ignore directories
 	// Immediately return false if it's a directory, no need to check extensions
 	if info.IsDir() {
 		return false
