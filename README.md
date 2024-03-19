@@ -115,9 +115,7 @@ In the vast landscape of command-line tools, **nameShift** `nsh` stands out as a
 
 Peek behind the curtain, and you'll find `nsh`'s secret sauce - a custom flag parsing mechanism that breathes life into these user-friendly features. This mechanism is the unsung hero, allowing `nsh` to gracefully handle variations in parameter inputs without breaking a sweat. It's not just code; it's a philosophy woven into the very fabric of `nsh` - to be as adaptable and accommodating as the diverse community it serves. 🌟👥
 
-> ✅ **nsh** is not merely a tool; it's a testament to the belief that technology should adapt to humans, not the other way around. With its blend of flexibility, forgiveness, and a touch of whimsy, `nsh` invites you to engage in the art of string manipulation with a sense of ease and joy unparallel in the realm of command-line tools. 🎭🛠️
-
-This commitment to user experience makes `nsh` not just a powerful tool in your arsenal but a joy to use, proving that in the digital world, understanding and adaptability are the true hallmarks of innovation. 🚀💡
+> ✅ **nsh** is merly a tool, no need to inflate it. 🎭🛠️
 
 # 🚀 **nsh vs. The World** 🚀
 
