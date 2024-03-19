@@ -6,13 +6,13 @@ Ever felt the urge to rename everything in sight? 😈 Whether it's those pesky 
 
 Here's what this bad boy can do for you:
 
-- 📁 Wave goodbye to old file & directory names and say hello to their snazzy new identities.
-- 📄 Dive deep into your files, leaving no string unturned.
+- 📁 Rename file & folder names.
+- 📄 Replace strings in file contents.
 - 🔍 Got a type? We can focus on specific file extensions for our makeover session.
 - 🚀 Want speed? Go concurrent. Prefer a leisurely pace? We do synchronous, too.
 - 🎯 Case-sensitive or case-agnostic, we cater to all tastes.
-- 🛑 Config directories are usually off-limits, but if you're feeling rebellious, we won't stop you.
-- 📊 Love numbers? Get juicy details with our tabular reports on the makeovers and mishaps.
+- 🛑 Config directories are usually off-limits, but if you're feeling like-it, we won't stop you.
+- 📊 Love numbers? Get details with tabular reports on the replacements and errors encountered.
 - 🚩 Flexible with your flags, whether you like them single or double-dashed.
 
 > No matter the challenge, **nsh** is your all-in-one, Swiss Army knife for string manipulation. Whether it's filenames, dirnames, or file guts, we've got you covered. 🛡️✨
@@ -47,12 +47,6 @@ Getting **nameShift** `nsh` ready to rock is as easy as it sounds; Follow these 
 
 Elevating **nameShift** `nsh` from a mere tool in your digital toolbox to a cornerstone of your system's utility belt is akin to granting it the key to the city. This step ensures `nsh` is not just another tool, but a trusted companion ready at your beck and call, across the vast landscapes of your operating system. 🗝️💼
 
-### Universal Spell for All Environments 🌎✨
-
-1. Arm yourself with the resolve of a seasoned administrator. You're about to grant `nsh` the honor of serving you system-wide.
-2. Stand at the heart of **nsh**'s domain, where `install.py` resides, a script penned by the sages to transcend OS boundaries.
-3. Invoke the installation script with the authority it requires:
-
 > 📦 Unix Installation  
 
 **⚠️ Note of Power:** Depending on the defensive enchantments on your system (read: permissions), you might need to invoke this script with elevated privileges. Should you encounter any resistance (errors or access denials), it's time to wield your powers as an administrator. On Unix-like systems, prepend `sudo` to the command, and on Windows, ensure your command prompt wields the might of an administrator. This is not merely a suggestion but a rite of passage for `nsh` to serve you without hindrance. 🛡️🔑
@@ -79,15 +73,9 @@ Elevating **nameShift** `nsh` from a mere tool in your digital toolbox to a corn
 ✅ build\\install
 ```
 
-As the script springs to life, it meticulously examines the lay of the land (your OS) and lays down the pathways for `nsh` to roam freely. It doesn't just install; it creates a symbolic link (`sem-link`), a beacon for all your command-line endeavors, guiding you to `nsh` whenever the need arises. 🛣️🔗
-
-
-
-**🎉 Et Voilà!** You've successfully bestowed upon **nsh** the honor of serving you at a system-wide level. Gone are the days of navigating to its abode for every task. `nsh` is now your ever-present aide, ready to tackle string manipulation challenges at a moment's notice. Journey forth with confidence, knowing that `nsh` is always within reach, a true testament to your command over your digital realm. 🌟🛠️
+**🎉 Et Voilà!** You've successfully bestowed upon **nsh** the honor of serving you at a system-wide level.`nsh` is now your ever-present aide! 🌟🛠️
 
 #### 🖥️ Running on Windows
-
-Feel the power coursing through your veins as you command:
 
 ```bash
 ✅ .\nsh.exe "path\\to\\directory" "OldText" "NewText" --ignore-config-dirs=true -work-globally=false --concurrent-run=false -case-matching=true -file-extensions=".go,.md"
@@ -106,7 +94,6 @@ Unleash the beast with:
 ```zsh
 ✅ ./nsh "path/to/directory" "OldText" "NewText" --ignore-config-dirs=true --work-globally=false -concurrent-run=false -case-matching=true --file-extensions=".go,.md"
 ```
-
 
 Or if you have installed the tool simply run it with:
 
