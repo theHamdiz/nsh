@@ -90,8 +90,14 @@ func (ns *NameShifter) collectPaths(startingDir string) ([]string, error) {
 			return err
 		}
 
-		// Skip .config directories if ignoreConfig is true
-		if ns.Config.IgnoreConfig && info.IsDir() && strings.HasPrefix(info.Name(), ".") {
+		// Extract the relative path of `path` from `startingDir` to correctly identify nested `venv` directories
+		relPath, err := filepath.Rel(startingDir, path)
+		if err != nil {
+			return err // Handle error but keep going
+		}
+
+		// Skip .config and venv directories if IgnoreConfig is true
+		if ns.Config.IgnoreConfig && info.IsDir() && (strings.HasPrefix(info.Name(), ".") || strings.Contains(relPath, "venv")) {
 			return filepath.SkipDir
 		}
 
@@ -140,7 +146,7 @@ func (ns *NameShifter) processSinglePath(path, theStringToBeReplaced, theReplace
 	}
 
 	if err := ns.ignoreConfigDirs(path, nil); err != nil {
-		ns.Context.AddError()
+		//ns.Context.AddError()
 		return // Skip this path due to error or it being a directory we're ignoring
 	}
 
@@ -160,7 +166,8 @@ func (ns *NameShifter) processSinglePath(path, theStringToBeReplaced, theReplace
 
 func (ns *NameShifter) ignoreConfigDirs(path string, err error) error {
 	dirName := filepath.Base(path)
-	if (strings.HasPrefix(dirName, ".") || strings.HasPrefix(dirName, "venv")) && ns.Config.IgnoreConfig {
+	// Check if the path contains `venv` as a segment to ensure it's skipped appropriately
+	if (strings.HasPrefix(dirName, ".") || strings.Contains(path, "/venv/") || strings.HasSuffix(path, "/venv")) && ns.Config.IgnoreConfig {
 		// If the directory name starts with '.', 'venv' skip it
 		return filepath.SkipDir
 	}
@@ -174,6 +181,7 @@ func (ns *NameShifter) ignoreConfigDirs(path string, err error) error {
 	}
 	return nil
 }
+
 
 // replaceString replaces all occurrences of toReplace with replacement in the original string.
 func (ns *NameShifter) replaceString(original, toReplace, replacement string) string {
@@ -412,7 +420,7 @@ func main() {
 	startingDirectory, theStringToBeReplaced, theReplacementString := args[0], args[1], args[2]
 	//fmt.Println("> Starting directory:", startingDirectory)
 	paths, err := ns.collectPaths(startingDirectory)
-	fmt.Println("> Paths:", paths)
+	//fmt.Println("> Paths:", paths)
 	if err != nil {
 		fmt.Println("> Error collecting paths:", err)
 		os.Exit(1)
