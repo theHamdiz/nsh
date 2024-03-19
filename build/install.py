@@ -13,9 +13,13 @@ class FileManager:
     def check_admin():
         """Check if the script is running with administrative privileges."""
         try:
-            return ctypes.windll.shell32.IsUserAnAdmin()
+            # On Unix systems, root has an effective user ID of 0.
+            return os.geteuid() == 0
         except:
-            return False  # Unable to check, so assume it's not an admin
+            try:
+                return ctypes.windll.shell32.IsUserAnAdmin()
+            except:
+                return False  # Unable to check, so assume it's not an admin
 
     @staticmethod
     def set_permissions_and_make_removable(target_dir="target", file_permission=0o755, dir_permission=0o777):
@@ -24,9 +28,9 @@ class FileManager:
             os.chmod(path, file_permission if path.is_file() else dir_permission)
 
     @staticmethod
-    def move_executable(build_executable_path, target_dir, executable_name):
+    def copy_executable(build_executable_path, target_dir, executable_name):
         if not FileManager.check_admin():
-            print("> Error: Administrator permissions required to move executable.")
+            print("> Error: Administrator permissions required to copy executable.")
             sys.exit(1)
 
         target_path = Path(target_dir) / 'theHamdiz' / executable_name
@@ -77,12 +81,21 @@ class BuildManager:
         }
         self.executable = 'nsh.exe' if platform == 'win32' else 'nsh'
 
+        # Check if the current working directory ends with 'build'
+        if os.path.basename(os.getcwd()).lower() == 'build':
+            # Adjust the build_scripts paths by removing the 'build/' or 'build\\' prefix
+            for key in self.build_scripts.keys():
+                self.build_scripts[key] = self.build_scripts[key].replace('build/', '').replace('build\\', '')
+
     def run_build_script(self):
         build_script = self.build_scripts.get(self.platform)
         if build_script:
             try:
                 if self.platform != "win32":
-                    subprocess.run(['./' + build_script], shell=True, check=True)
+                    try:
+                        subprocess.run(['./' + build_script], shell=True, check=True)
+                    except:
+                        subprocess.run(['./build.sh'], shell=True, check=True)
                 else:
                     try:
                         subprocess.run([build_script], shell=True, check=True)
@@ -100,7 +113,7 @@ class BuildManager:
         target_dir = self.target_dirs.get(self.platform)
         if target_dir:
             build_executable_path = Path('target', self.platform, self.executable).resolve()
-            target_path = FileManager.move_executable(build_executable_path, target_dir, self.executable)
+            target_path = FileManager.copy_executable(build_executable_path, target_dir, self.executable)
             print(f'> Successfully installed {self.executable} to {target_path}.')
 
             if self.platform != 'win32':
@@ -116,7 +129,7 @@ class BuildManager:
 
 
 if __name__ == '__main__':
-    if not FileManager.check_admin() and sys.platform == "win32":
+    if not FileManager.check_admin():
         print("This script requires administrative privileges. Please run as administrator.")
         sys.exit(1)
 

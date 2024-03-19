@@ -20,17 +20,43 @@ import (
 )
 
 var (
-	ignoreConfig      bool
-	workGlobally      bool
-	concurrentRun     bool
-	caseMatching      bool
-	Version           = "0.1.3"
-	versionFlag       bool
-	fileExtensions    string
 	errorsCount       int32
 	replacementsCount int32
-	errorReport       table.Writer
 )
+
+// Config encapsulates application-wide configurations.
+type Config struct {
+	IgnoreConfig   bool
+	WorkGlobally   bool
+	ConcurrentRun  bool
+	CaseMatching   bool
+	FileExtensions []string
+	VersionFlag    bool
+	Version        string
+}
+
+func NewConfig() *Config {
+	cfg := &Config{
+		Version: "0.2.1", // Assuming this is a constant for now
+	}
+	flag.BoolVar(&cfg.IgnoreConfig, "ignore-config-dirs", true, "Ignore .config directories 🚫🐙")
+	flag.BoolVar(&cfg.IgnoreConfig, "i", true, "Ignore .config directories 🚫🐙")
+	flag.BoolVar(&cfg.WorkGlobally, "work-globally", false, "Work on folder names, file names, and file contents 🌍✨")
+	flag.BoolVar(&cfg.WorkGlobally, "g", false, "Work on folder names, file names, and file contents 🌍✨")
+	flag.BoolVar(&cfg.ConcurrentRun, "concurrent-run", false, "Run each folder inside the root directory in a separate goroutine 🏃💨")
+	flag.BoolVar(&cfg.ConcurrentRun, "cr", false, "Run each folder inside the root directory in a separate goroutine 🏃💨")
+	flag.BoolVar(&cfg.CaseMatching, "case-matching", true, "Match case when replacing strings 👔🔍")
+	flag.BoolVar(&cfg.CaseMatching, "cm", true, "Match case when replacing strings 👔🔍")
+	var fileExtensions string
+	flag.StringVar(&fileExtensions, "file-extensions", ".go,.md", "Comma-separated list of file extensions to process, e.g., '.go,.md' 📄✂️")
+	flag.StringVar(&fileExtensions, "ext", ".go,.md", "Comma-separated list of file extensions to process, e.g., '.go,.md' 📄✂️")
+	flag.StringVar(&fileExtensions, "exts", ".go,.md", "Comma-separated list of file extensions to process, e.g., '.go,.md' 📄✂️")
+
+	flag.Parse()
+
+	cfg.FileExtensions = strings.Split(fileExtensions, ",")
+	return cfg
+}
 
 func customFlagParsing() {
 	//log.Println("> Inside customFlagParsing")
@@ -46,30 +72,103 @@ func customFlagParsing() {
 func init() {
 	//log.Println("> Entering init function for initializing the flags")
 	customFlagParsing()
-	flag.BoolVar(&ignoreConfig, "ignore-config-dirs", true, "Ignore .config directories 🚫🐙")
-	flag.BoolVar(&ignoreConfig, "i", true, "Ignore .config directories 🚫🐙")
-
-	flag.BoolVar(&workGlobally, "work-globally", false, "Work on folder names, file names, and file contents (default false)🌍✨")
-	flag.BoolVar(&workGlobally, "g", false, "Work on folder names, file names, and file contents (default false)🌍✨")
-
-	flag.BoolVar(&concurrentRun, "concurrent-run", false, "Run each folder inside the root directory in a separate goroutine (default false)🏃💨")
-	flag.BoolVar(&concurrentRun, "cr", false, "Run each folder inside the root directory in a separate goroutine (default false)🏃💨")
-
-	flag.BoolVar(&caseMatching, "case-matching", true, "Match case when replacing strings (default true) 👔🔍")
-	flag.BoolVar(&caseMatching, "cm", true, "Match case when replacing strings (default true) 👔🔍")
-
-	flag.StringVar(&fileExtensions, "file-extensions", ".go", "Comma-separated list of file extensions to process, e.g., '.go,.txt' 📄✂️")
-	flag.StringVar(&fileExtensions, "ext", ".go", "Comma-separated list of file extensions to process, e.g., '.go,.txt' 📄✂️")
-	flag.StringVar(&fileExtensions, "exts", ".go", "Comma-separated list of file extensions to process, e.g., '.go,.txt' 📄✂️")
-
-	flag.BoolVar(&versionFlag, "version", false, "Get the current program version 🚀")
-	flag.BoolVar(&versionFlag, "v", false, "Get the current program version 🚀")
-	flag.BoolVar(&versionFlag, "V", false, "Get the current program version 🚀")
 }
 
-func ignoreConfigDirs(path string, err error) error {
+
+func collectPaths(startingDir string, ignoreConfig bool) ([]string, error) {
+	var paths []string
+	err := filepath.Walk(startingDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		// Skip .config directories if ignoreConfig is true
+		if ignoreConfig && info.IsDir() && strings.HasPrefix(info.Name(), ".") {
+			return filepath.SkipDir
+		}
+
+		paths = append(paths, path)
+		return nil
+	})
+
+	return paths, err
+}
+
+// NameShifter encapsulates all functionalities related to the name shifting process.
+type NameShifter struct {
+	Config  *Config
+	Context *AppContext
+}
+
+// NewNameShifter creates a new instance of NameShifter with given configuration and context.
+func NewNameShifter(cfg *Config, ctx *AppContext) *NameShifter {
+	return &NameShifter{
+		Config:  cfg,
+		Context: ctx,
+	}
+}
+
+// ProcessAllPaths decides whether to process paths concurrently or sequentially based on the configuration.
+func (ns *NameShifter) ProcessAllPaths(paths []string, theStringToBeReplaced, theReplacementString string) {
+	if ns.Config.ConcurrentRun {
+		ns.processPathsConcurrently(paths, theStringToBeReplaced, theReplacementString)
+	} else {
+		ns.processPathsSequentially(paths, theStringToBeReplaced, theReplacementString)
+	}
+}
+
+// processPathsConcurrently processes paths in parallel using goroutines.
+func (ns *NameShifter) processPathsConcurrently(paths []string, theStringToBeReplaced, theReplacementString string) {
+	var wg sync.WaitGroup
+	for _, path := range paths {
+		wg.Add(1)
+		go func(p string) {
+			defer wg.Done()
+			ns.processSinglePath(p, theStringToBeReplaced, theReplacementString)
+		}(path)
+	}
+	wg.Wait()
+}
+
+// processPathsSequentially processes paths one after another.
+func (ns *NameShifter) processPathsSequentially(paths []string, theStringToBeReplaced, theReplacementString string) {
+	for _, path := range paths {
+		ns.processSinglePath(path, theStringToBeReplaced, theReplacementString)
+	}
+}
+
+func (ns *NameShifter) processSinglePath(path, theStringToBeReplaced, theReplacementString string) {
+	info, err := os.Stat(path)
+	if err != nil {
+		ns.Context.AddError()
+		return
+	}
+
+	if err := ns.ignoreConfigDirs(path, nil); err != nil {
+		row := []table.Row{{"Path", path, "Error", err}}
+		ns.Context.AddError()
+		ns.Context.AddErrorReportRow(row)
+		return
+	}
+
+	if ns.Config.WorkGlobally && (info.IsDir() || strings.Contains(info.Name(), theStringToBeReplaced)) {
+		if err := ns.renameEntity(path, theStringToBeReplaced, theReplacementString); err != nil {
+			row := []table.Row{{"Path", path, "Error", fmt.Sprintf("Could not rename: %v", err)}}
+			ns.Context.AddError()
+			ns.Context.AddErrorReportRow(row)
+		}
+	}
+
+	if ns.shouldProcessFile(path, info) {
+		if err := ns.processFile(path, theStringToBeReplaced, theReplacementString); err != nil {
+			// Handle file processing error
+		}
+	}
+}
+
+func (ns *NameShifter) ignoreConfigDirs(path string, err error) error {
 	dirName := filepath.Base(path)
-	if strings.HasPrefix(dirName, ".") && ignoreConfig {
+	if strings.HasPrefix(dirName, ".") && ns.Config.IgnoreConfig {
 		// If the directory name starts with '.', skip it
 		return filepath.SkipDir
 	}
@@ -84,62 +183,16 @@ func ignoreConfigDirs(path string, err error) error {
 	return nil
 }
 
-func processPath(ctx *AppContext, path string, info os.FileInfo, theStringToBeReplaced, theReplacementString string) error {
-	if err := ignoreConfigDirs(path, nil); err != nil {
-		row := []table.Row{{"Path", path, "Error", err}}
-		ctx.AddError()
-		ctx.AddErrorReportRow(row)
-		return err
-	}
-
-	// Directly use the newly abstracted renameEntity function for files and directories.
-	if workGlobally && (info.IsDir() || strings.Contains(info.Name(), theStringToBeReplaced)) {
-		if err := renameEntity(ctx, path, theStringToBeReplaced, theReplacementString); err != nil {
-			row := []table.Row{{"Path", path, "Error", fmt.Sprintf("Could not rename: %v", err)}}
-			ctx.AddError()
-			ctx.AddErrorReportRow(row)
-			return err
-		}
-	}
-
-	// For files, check if they should be processed and then process.
-	if shouldProcessFile(path, info) {
-		return processFile(path, theStringToBeReplaced, theReplacementString)
-	}
-
-	return nil
-}
-
-func renameEntity(ctx *AppContext, entityPath, theStringToBeReplaced, theReplacementString string) error {
-	newPath := strings.Replace(entityPath, theStringToBeReplaced, theReplacementString, -1)
-	if err := moveFileWithRetry(entityPath, newPath, 6); err != nil {
-		if os.IsPermission(err) {
-			if permErr := os.Chmod(entityPath, 0666); permErr != nil {
-				ctx.AddError()
-				return permErr // Permission change failed, return the error
-			}
-			if retryErr := moveFileWithRetry(entityPath, newPath, 6); retryErr != nil {
-				ctx.AddError()
-				return retryErr // Rename still failed, return the error
-			}
-		} else {
-			ctx.AddError()
-			return err // Non-permission error encountered, return it
-		}
-	}
-	ctx.AddReplacement()
-	return nil // Successfully renamed the entity
-}
-
-func replaceString(original, toReplace, replacement string, caseSensitive bool) string {
-	if caseSensitive {
+// replaceString replaces all occurrences of toReplace with replacement in the original string.
+func (ns *NameShifter) replaceString(original, toReplace, replacement string) string {
+	if ns.Config.CaseMatching {
 		return strings.Replace(original, toReplace, replacement, -1)
 	}
 	regex := regexp.MustCompile("(?i)" + regexp.QuoteMeta(toReplace))
 	return regex.ReplaceAllString(original, replacement)
 }
 
-func processFile(path, theStringToBeReplaced, theReplacementString string) error {
+func (ns *NameShifter) processFile(path, theStringToBeReplaced, theReplacementString string) error {
 	originalFile, err := os.Open(path)
 	if err != nil {
 		atomic.AddInt32(&errorsCount, 1)
@@ -177,7 +230,7 @@ func processFile(path, theStringToBeReplaced, theReplacementString string) error
 
 	for scanner.Scan() {
 		line := scanner.Text()
-		modifiedLine := replaceString(line, theStringToBeReplaced, theReplacementString, caseMatching)
+		modifiedLine := ns.replaceString(line, theStringToBeReplaced, theReplacementString)
 		if _, err := writer.WriteString(modifiedLine + "\n"); err != nil {
 			atomic.AddInt32(&errorsCount, 1)
 			return err // No need for additional cleanup, defer will handle it.
@@ -203,7 +256,7 @@ func processFile(path, theStringToBeReplaced, theReplacementString string) error
 	}
 
 	// Replace the original file with the temp file.
-	if err := moveFileWithRetry(tempFile.Name(), path, 6); err != nil {
+	if err := ns.moveFileWithRetry(tempFile.Name(), path, 6); err != nil {
 		atomic.AddInt32(&errorsCount, 1)
 		return err // The file is still going to be removed due to the defer.
 	}
@@ -212,20 +265,30 @@ func processFile(path, theStringToBeReplaced, theReplacementString string) error
 }
 
 // moveFile handles moving a file from src to dst, working across different file systems/devices.
-func moveFile(src, dst string) error {
+func (ns *NameShifter) moveFile(src, dst string) error {
 	// Open the source file for reading.
 	sourceFile, err := os.Open(src)
 	if err != nil {
 		return err
 	}
-	defer sourceFile.Close()
+	defer func(sourceFile *os.File) {
+		err := sourceFile.Close()
+		if err != nil {
+			fmt.Println("> Error while attempting to close the file: %w", err)
+		}
+	}(sourceFile)
 
 	// Create the destination file for writing.
 	destinationFile, err := os.Create(dst)
 	if err != nil {
 		return err
 	}
-	defer destinationFile.Close()
+	defer func(destinationFile *os.File) {
+		err := destinationFile.Close()
+		if err != nil {
+			fmt.Println("> Error while attempting to close the file: %w", err)
+		}
+	}(destinationFile)
 
 	// Copy the contents of the source file to the destination file.
 	if _, err := io.Copy(destinationFile, sourceFile); err != nil {
@@ -245,12 +308,13 @@ func moveFile(src, dst string) error {
 	return nil
 }
 
-func moveFileWithRetry(src, dst string, maxRetries int) error {
+// moveFileWithRetry handles moving a file from src to dst, working across different file systems/devices, with retries.
+func (ns *NameShifter) moveFileWithRetry(src, dst string, maxRetries int) error {
 	var lastErr error
 	retryDelay := 2 // Initial delay in seconds
 
 	for attempt := 0; attempt < maxRetries; attempt++ {
-		err := moveFile(src, dst)
+		err := ns.moveFile(src, dst)
 		if err == nil {
 			return nil // Success, file moved
 		}
@@ -266,10 +330,9 @@ func moveFileWithRetry(src, dst string, maxRetries int) error {
 	return fmt.Errorf("> moveFileWithRetry failed after %d attempts: %v", maxRetries, lastErr)
 }
 
-func shouldProcessFile(path string, info os.FileInfo) bool {
+func (ns *NameShifter) shouldProcessFile(path string, info os.FileInfo) bool {
 	if !info.IsDir() {
-		exts := strings.Split(fileExtensions, ",")
-		for _, ext := range exts {
+		for _, ext := range ns.Config.FileExtensions {
 			if strings.HasSuffix(path, ext) {
 				return true
 			}
@@ -278,58 +341,66 @@ func shouldProcessFile(path string, info os.FileInfo) bool {
 	return false
 }
 
-func collectPaths(startingDir string, ignoreConfig bool) ([]string, error) {
-	var paths []string
-	err := filepath.Walk(startingDir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-
-		// Skip .config directories if ignoreConfig is true
-		if ignoreConfig && info.IsDir() && strings.HasPrefix(info.Name(), ".") {
-			return filepath.SkipDir
-		}
-
-		paths = append(paths, path)
-		return nil
-	})
-
-	return paths, err
-}
-
-func processPaths(ctx *AppContext, paths []string, theStringToBeReplaced, theReplacementString string) {
-	var wg sync.WaitGroup
-
-	for _, path := range paths {
-		wg.Add(1)
-		go func(p string) {
-			defer wg.Done()
-
-			info, err := os.Stat(p)
-			if err != nil {
-				// Handle error, possibly update ctx with the error information
-				ctx.AddError()
-				return
-			}
-
-			if err := processPath(ctx, p, info, theStringToBeReplaced, theReplacementString); err != nil {
-				// Handle error, possibly update ctx with the error information
-				ctx.AddError()
-			}
-		}(path)
+func (ns *NameShifter) processPath(path string, info os.FileInfo, theStringToBeReplaced, theReplacementString string, cfg *Config) error {
+	if err := ns.ignoreConfigDirs(path, nil); err != nil {
+		row := []table.Row{{"Path", path, "Error", err}}
+		ns.Context.AddError()
+		ns.Context.AddErrorReportRow(row)
+		return err
 	}
 
-	wg.Wait()
+	// Directly use the newly abstracted renameEntity function for files and directories.
+	if cfg.WorkGlobally && (info.IsDir() || strings.Contains(info.Name(), theStringToBeReplaced)) {
+		if err := ns.renameEntity(path, theStringToBeReplaced, theReplacementString); err != nil {
+			row := []table.Row{{"Path", path, "Error", fmt.Sprintf("Could not rename: %v", err)}}
+			ns.Context.AddError()
+			ns.Context.AddErrorReportRow(row)
+			return err
+		}
+	}
+
+	// For files, check if they should be processed and then process.
+	if ns.shouldProcessFile(path, info) {
+		return ns.processFile(path, theStringToBeReplaced, theReplacementString)
+	}
+
+	return nil
+}
+
+func (ns *NameShifter) renameEntity(entityPath, theStringToBeReplaced, theReplacementString string) error {
+	newPath := strings.Replace(entityPath, theStringToBeReplaced, theReplacementString, -1)
+	if err := ns.moveFileWithRetry(entityPath, newPath, 6); err != nil {
+		if os.IsPermission(err) {
+			if permErr := os.Chmod(entityPath, 0666); permErr != nil {
+				ns.Context.AddError()
+				return permErr // Permission change failed, return the error
+			}
+			if retryErr := ns.moveFileWithRetry(entityPath, newPath, 6); retryErr != nil {
+				ns.Context.AddError()
+				return retryErr // Rename still failed, return the error
+			}
+		} else {
+			ns.Context.AddError()
+			return err // Non-permission error encountered, return it
+		}
+	}
+	ns.Context.AddReplacement()
+	return nil // Successfully renamed the entity
 }
 
 func main() {
 	resetColors()
 	printLogo()
 	flag.Parse()
-	ctx := NewAppContext()
 
-	if versionFlag {
-		color.Cyan(fmt.Sprintf("\n> NameShifter Version: %s 🚀📚\n", Version))
+	customFlagParsing() // Ensure custom flag parsing is called if not already handled by flag.Parse()
+
+	cfg := NewConfig()
+	ctx := NewAppContext()
+	ns := NewNameShifter(cfg, ctx)
+
+	if cfg.VersionFlag {
+		color.Cyan(fmt.Sprintf("\n> NameShifter Version: %s 🚀📚\n", cfg.Version))
 		os.Exit(0)
 	}
 
@@ -340,44 +411,17 @@ func main() {
 
 	args := flag.Args()
 	startingDirectory, theStringToBeReplaced, theReplacementString := args[0], args[1], args[2]
-	paths, err := collectPaths(startingDirectory, ignoreConfig)
+	paths, err := collectPaths(startingDirectory, cfg.IgnoreConfig)
 	if err != nil {
-		fmt.Println("Error collecting paths:", err)
+		fmt.Println("> Error collecting paths:", err)
 		os.Exit(1)
 	}
-	printSettings()
 
-	var wg sync.WaitGroup
+	ns.ProcessAllPaths(paths, theStringToBeReplaced, theReplacementString)
 
-	if concurrentRun {
-		processPaths(ctx, paths, theStringToBeReplaced, theReplacementString)
-	} else {
-		for _, path := range paths {
-			info, err := os.Stat(path)
-			if err != nil {
-				// Handle error, possibly update ctx with the error information
-				ctx.AddError()
-				continue
-			}
-			err = processPath(ctx, path, info, theStringToBeReplaced, theReplacementString)
-			if err != nil {
-				//fmt.Println("> Error processing path:", err)
-				continue
-			}
-		}
+	if ctx.errorsCount > 0 {
+		ctx.DisplayErrorReport()
 	}
-
-	wg.Wait()
-
-	if err != nil {
-		row := []table.Row{{3, fmt.Sprintf("Error walking through %s 😢👣", startingDirectory), err}}
-		ctx.AddErrorReportRow(row)
-		//os.Exit(2)
-	} else {
-		color.Green(fmt.Sprintf("\n> Names Shifted Successfully! 🎉📝✅\n"))
-	}
-
-	ctx.DisplayErrorReport()
 	ctx.ReplacementsAndErrorsReport()
 	os.Exit(0)
 }
