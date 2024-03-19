@@ -146,9 +146,10 @@ func (ns *NameShifter) processSinglePath(path, theStringToBeReplaced, theReplace
 	}
 
 	if err := ns.ignoreConfigDirs(path, nil); err != nil {
-		row := []table.Row{{"Path", path, "Error", err}}
-		ns.Context.AddError()
-		ns.Context.AddErrorReportRow(row)
+		// Uncomment the below if you want the reporter to report failure for skipping config files.
+		//row := []table.Row{{"Path", path, "Error", err}}
+		//ns.Context.AddError()
+		//ns.Context.AddErrorReportRow(row)
 		return
 	}
 
@@ -423,6 +424,7 @@ func main() {
 	if ctx.errorsCount > 0 {
 		ctx.DisplayErrorReport()
 	}
+
 	ctx.ReplacementsAndErrorsReport()
 	os.Exit(0)
 }
