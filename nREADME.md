@@ -45,8 +45,8 @@ nsh, formerly known as nameShift, is a versatile tool designed for comprehensive
 ```zsh
 ✅  sudo python3 build/install.py
 ```
-
-Or:
+  
+  Or:
 
 ```zsh
 ✅  sudo ./build/install.py
@@ -59,7 +59,7 @@ Or:
 ✅  python build\\install.py
 ```
 
-Or directly run:
+  Or directly run:
 
 ```bash
 ✅  build\\install
