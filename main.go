@@ -15,13 +15,7 @@ import (
 	"regexp"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
-)
-
-var (
-	errorsCount       int32
-	replacementsCount int32
 )
 
 // Config encapsulates application-wide configurations.
@@ -146,32 +140,28 @@ func (ns *NameShifter) processSinglePath(path, theStringToBeReplaced, theReplace
 	}
 
 	if err := ns.ignoreConfigDirs(path, nil); err != nil {
-		// Uncomment the below if you want the reporter to report failure for skipping config files.
-		//row := []table.Row{{"Path", path, "Error", err}}
-		//ns.Context.AddError()
-		//ns.Context.AddErrorReportRow(row)
-		return
+		ns.Context.AddError()
+		return // Skip this path due to error or it being a directory we're ignoring
 	}
 
+	// Handling directories and files
 	if ns.Config.WorkGlobally && (info.IsDir() || strings.Contains(info.Name(), theStringToBeReplaced)) {
 		if err := ns.renameEntity(path, theStringToBeReplaced, theReplacementString); err != nil {
-			row := []table.Row{{"Path", path, "Error", fmt.Sprintf("Could not rename: %v", err)}}
 			ns.Context.AddError()
-			ns.Context.AddErrorReportRow(row)
+			return
 		}
-	}
-
-	if ns.shouldProcessFile(path, info) {
+	} else if !info.IsDir() && ns.shouldProcessFile(path, info) {
 		if err := ns.processFile(path, theStringToBeReplaced, theReplacementString); err != nil {
-			// Handle file processing error
+			ns.Context.AddError()
+			return
 		}
 	}
 }
 
 func (ns *NameShifter) ignoreConfigDirs(path string, err error) error {
 	dirName := filepath.Base(path)
-	if strings.HasPrefix(dirName, ".") && ns.Config.IgnoreConfig {
-		// If the directory name starts with '.', skip it
+	if (strings.HasPrefix(dirName, ".") || strings.HasPrefix(dirName, "venv")) && ns.Config.IgnoreConfig {
+		// If the directory name starts with '.', 'venv' skip it
 		return filepath.SkipDir
 	}
 
@@ -179,7 +169,7 @@ func (ns *NameShifter) ignoreConfigDirs(path string, err error) error {
 		if os.IsPermission(err) {
 			return filepath.SkipDir // Skip this file or directory but continue walking
 		}
-		atomic.AddInt32(&errorsCount, 1)
+		ns.Context.AddError()
 		return fmt.Errorf("> Error while attempting to ignore .config dirs: %w", err)
 	}
 	return nil
@@ -197,34 +187,20 @@ func (ns *NameShifter) replaceString(original, toReplace, replacement string) st
 func (ns *NameShifter) processFile(path, theStringToBeReplaced, theReplacementString string) error {
 	originalFile, err := os.Open(path)
 	if err != nil {
-		atomic.AddInt32(&errorsCount, 1)
+		ns.Context.AddError()
 		return err
 	}
-	defer func(originalFile *os.File) {
-		err := originalFile.Close()
-		if err != nil {
-			fmt.Println("> Error while attempting to close the file: %w", err)
-		}
-	}(originalFile) // We'll still defer the close here, as it's simpler and still safe.
+	defer originalFile.Close()
 
-	// Create a temp file. Note: We're not deferring the cleanup here because we want to control it precisely.
+	// Create a temp file
 	tempFile, err := os.CreateTemp("", "nsh_temp_file_")
 	if err != nil {
-		atomic.AddInt32(&errorsCount, 1)
+		ns.Context.AddError()
 		return err
 	}
-
-	// Ensure we clean up the temp file in every possible exit path after this point.
-	// This defer statement is critical for making sure the temp file is always removed.
 	defer func() {
-		err := tempFile.Close()
-		if err != nil {
-			return
-		} // Attempt to close the temp file. Ignoring errors here as we're going to delete it anyway.
-		err = os.Remove(tempFile.Name())
-		if err != nil {
-			return
-		} // Attempt to remove the file. If this fails, there's not much more we can do.
+		tempFile.Close()
+		os.Remove(tempFile.Name()) // Cleanup temp file regardless of success
 	}()
 
 	scanner := bufio.NewScanner(originalFile)
@@ -234,33 +210,33 @@ func (ns *NameShifter) processFile(path, theStringToBeReplaced, theReplacementSt
 		line := scanner.Text()
 		modifiedLine := ns.replaceString(line, theStringToBeReplaced, theReplacementString)
 		if _, err := writer.WriteString(modifiedLine + "\n"); err != nil {
-			atomic.AddInt32(&errorsCount, 1)
-			return err // No need for additional cleanup, defer will handle it.
+			ns.Context.AddError()
+			return err
 		}
 		if modifiedLine != line {
-			atomic.AddInt32(&replacementsCount, 1) // Increment only if a replacement occurred
+			ns.Context.AddReplacement() // Corrected to use the context's method for incrementing
 		}
 	}
 	if err := scanner.Err(); err != nil {
-		atomic.AddInt32(&errorsCount, 1)
-		return err // No need for additional cleanup, defer will handle it.
+		ns.Context.AddError()
+		return err
 	}
 
 	if err := writer.Flush(); err != nil {
-		atomic.AddInt32(&errorsCount, 1)
-		return err // No need for additional cleanup, defer will handle it.
+		ns.Context.AddError()
+		return err
 	}
 
-	// Closing the temp file before renaming it. This is necessary on some systems like Windows.
+	// Ensure the temp file is closed before attempting to rename
 	if err := tempFile.Close(); err != nil {
-		atomic.AddInt32(&errorsCount, 1)
-		return err // The file is still going to be removed due to the defer.
+		ns.Context.AddError()
+		return err
 	}
 
-	// Replace the original file with the temp file.
+	// Replace the original file with the temp file
 	if err := ns.moveFileWithRetry(tempFile.Name(), path, 6); err != nil {
-		atomic.AddInt32(&errorsCount, 1)
-		return err // The file is still going to be removed due to the defer.
+		ns.Context.AddError()
+		return err
 	}
 
 	return nil
@@ -333,21 +309,31 @@ func (ns *NameShifter) moveFileWithRetry(src, dst string, maxRetries int) error 
 }
 
 func (ns *NameShifter) shouldProcessFile(path string, info os.FileInfo) bool {
-	if !info.IsDir() {
-		for _, ext := range ns.Config.FileExtensions {
-			if strings.HasSuffix(path, ext) {
-				return true
-			}
+	// Immediately return false if it's a directory, no need to check extensions
+	if info.IsDir() {
+		return false
+	}
+
+	// Extract file extension from path for comparison
+	fileExt := filepath.Ext(path)
+
+	// Check if the file's extension is in the list of extensions to process
+	for _, ext := range ns.Config.FileExtensions {
+		if fileExt == ext || (len(ext) > 0 && ext[0] == '.' && fileExt == ext) {
+			return true
 		}
 	}
+
 	return false
 }
 
+
 func (ns *NameShifter) processPath(path string, info os.FileInfo, theStringToBeReplaced, theReplacementString string, cfg *Config) error {
 	if err := ns.ignoreConfigDirs(path, nil); err != nil {
-		row := []table.Row{{"Path", path, "Error", err}}
-		ns.Context.AddError()
-		ns.Context.AddErrorReportRow(row)
+		// Uncomment the below if you want the reporter to report failure for skipping config files.
+		//row := []table.Row{{"Path", path, "Error", err}}
+		//ns.Context.AddError()
+		//ns.Context.AddErrorReportRow(row)
 		return err
 	}
 
@@ -370,24 +356,35 @@ func (ns *NameShifter) processPath(path string, info os.FileInfo, theStringToBeR
 }
 
 func (ns *NameShifter) renameEntity(entityPath, theStringToBeReplaced, theReplacementString string) error {
+	// Prepare the new path by replacing the specified string.
 	newPath := strings.Replace(entityPath, theStringToBeReplaced, theReplacementString, -1)
+
+	// Attempt to rename (move) the entity.
 	if err := ns.moveFileWithRetry(entityPath, newPath, 6); err != nil {
+		// Specific handling for permission errors.
 		if os.IsPermission(err) {
+			// Try changing permissions and retry the move.
 			if permErr := os.Chmod(entityPath, 0666); permErr != nil {
 				ns.Context.AddError()
-				return permErr // Permission change failed, return the error
+				// Wrap the error to provide more context.
+				return fmt.Errorf("failed to change permissions for %s: %w", entityPath, permErr)
 			}
+			// Retry the move operation.
 			if retryErr := ns.moveFileWithRetry(entityPath, newPath, 6); retryErr != nil {
 				ns.Context.AddError()
-				return retryErr // Rename still failed, return the error
+				// Wrap the error to provide more context.
+				return fmt.Errorf("failed to move %s after changing permissions: %w", entityPath, retryErr)
 			}
 		} else {
 			ns.Context.AddError()
-			return err // Non-permission error encountered, return it
+			// Wrap the error to provide more context.
+			return fmt.Errorf("failed to move %s: %w", entityPath, err)
 		}
 	}
+
+	// Log the successful replacement.
 	ns.Context.AddReplacement()
-	return nil // Successfully renamed the entity
+	return nil
 }
 
 func main() {
@@ -413,7 +410,9 @@ func main() {
 
 	args := flag.Args()
 	startingDirectory, theStringToBeReplaced, theReplacementString := args[0], args[1], args[2]
+	//fmt.Println("> Starting directory:", startingDirectory)
 	paths, err := ns.collectPaths(startingDirectory)
+	fmt.Println("> Paths:", paths)
 	if err != nil {
 		fmt.Println("> Error collecting paths:", err)
 		os.Exit(1)
